@@ -8,8 +8,15 @@ on:
         description: Existing version tag to build (must match CitrusVersion.props)
         required: true
         type: string
+      signing:
+        description: Optional installer-only signing (requires approved free SignPath Foundation setup)
+        required: true
+        default: unsigned
+        type: choice
+        options: [unsigned, signpath]
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
@@ -34,11 +41,18 @@ jobs:
     needs: release_state
     if: needs.release_state.outputs.prepare == 'true'
     runs-on: windows-2025
-    timeout-minutes: 90
+    timeout-minutes: 180
+    env:
+      CITRUS_SIGNING: ${{ inputs.signing || 'unsigned' }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+      SIGNPATH_ALLOWED_SIGNER_THUMBPRINTS: ${{ vars.SIGNPATH_ALLOWED_SIGNER_THUMBPRINTS }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.402
@@ -54,6 +68,12 @@ jobs:
           $version=[string]$versions.Project.PropertyGroup.Version
           if($env:REQUESTED_TAG -cne ('v'+$version)){throw 'Tag must match the central application and installer version'}
           "CITRUS_RELEASE_TAG=$env:REQUESTED_TAG" >> $env:GITHUB_ENV
+          "CITRUS_RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Require approved SignPath configuration before building
+        if: inputs.signing == 'signpath'
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: python packaging/signpath/verify-installer.py preflight
       - name: Fetch pinned NSIS 3.11 compiler
         shell: pwsh
         run: |
@@ -84,6 +104,8 @@ jobs:
         run: |
           python packaging/test-update-metadata.py
           if($LASTEXITCODE){throw 'Updater metadata contracts failed'}
+          python packaging/test-signpath.py
+          if($LASTEXITCODE){throw 'Signing verification contracts failed'}
           python packaging/test-update-installer.py
           if($LASTEXITCODE){throw 'Native installer transition fixtures failed'}
       - name: Build complete offline installer and verify prepared inventory
@@ -94,7 +116,52 @@ jobs:
           # Keep exhaustive, repeated missing-asset scans separate from release preparation.
           python packaging/test-package.py
           if($LASTEXITCODE){throw 'Complete package tests failed'}
-          python packaging/release-metadata.py
+      # Initial scope is the outer installer only. Installed Citrus binaries,
+      # the NSIS uninstaller, and third-party binaries retain their original bytes.
+      - name: Upload this exact unsigned installer for origin-verified signing
+        if: inputs.signing == 'signpath'
+        id: signpath-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrus-unsigned-installer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/Citrus-Setup.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+      - name: Request free Foundation signing and wait for manual approval
+        if: inputs.signing == 'signpath'
+        # Official v3.0.0, resolved from SignPath's v3 ref on 2026-10-21.
+        uses: SignPath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.signpath-upload.outputs.artifact-id }}
+          parameters: |
+            version: "${{ env.CITRUS_RELEASE_VERSION }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/citrus-signpath-returned
+      - name: Require trusted returned signature and the unchanged installer payload
+        if: inputs.signing == 'signpath'
+        shell: pwsh
+        env:
+          SIGNED_DIRECTORY: ${{ runner.temp }}/citrus-signpath-returned
+        run: |
+          python packaging/signpath/verify-installer.py accept --signed-directory "$env:SIGNED_DIRECTORY"
+          if($LASTEXITCODE){throw 'Returned signature validation failed; unsigned fallback is forbidden'}
+          python packaging/package.py checksums dist
+          if($LASTEXITCODE){throw 'Final signed-byte checksums failed'}
+      - name: Record actual signature status and final-byte release metadata
+        shell: pwsh
+        run: |
+          if($env:CITRUS_SIGNING -eq 'signpath'){
+            python packaging/release-metadata.py --require-signed
+          }else{
+            python packaging/release-metadata.py
+          }
           if($LASTEXITCODE){throw 'Public release metadata failed'}
       - name: Upload complete assets to a draft only
         shell: pwsh

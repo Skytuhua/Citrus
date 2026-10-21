@@ -99,6 +99,10 @@ Never attach private documents, credentials or unredacted desktop captures to pu
 
 ## License and credits
 
+### Code signing policy
+
+Free SignPath Foundation signing is being prepared and requires provider approval. Current previews remain unsigned. Read the [Code signing policy](docs/CODE_SIGNING_POLICY.md) for the proposed installer-only scope, release responsibilities and privacy disclosures.
+
 Citrus application code uses the [MIT License](LICENSE). Bundled engines, fonts and Windows components retain their own licenses and terms; see [third-party notices](THIRD-PARTY-NOTICES.md), the installer's component notice and the sources included with the engine pack.
 
 The native wheel material adapts Liquid Glass Studio's optical work with attribution. Launch photography is original AI-generated sample content; product UI is rendered from the app. See [media provenance](docs/launch/2026-10-21/media/README.md).

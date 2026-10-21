@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding draft: Foundation must approve this configuration and artifact size.
+     GitHub Actions artifacts are ZIP archives. Sign only the outer NSIS PE;
+     preserve all embedded app/uninstaller and upstream component bytes. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="Citrus-Setup.exe" product-name="Citrus" file-version="${version}">
+      <authenticode-sign hash-algorithm="sha256" description="Citrus Windows installer" description-url="https://citrous.app/" />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

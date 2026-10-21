@@ -28,7 +28,7 @@ SetCompressor lzma
 SetDatablockOptimize on
 VIProductVersion "${CITRUS_FILE_VERSION}"
 VIAddVersionKey "ProductName" "Citrus"
-VIAddVersionKey "FileDescription" "Citrus unsigned Windows installer candidate"
+VIAddVersionKey "FileDescription" "Citrus Windows installer"
 VIAddVersionKey "FileVersion" "${CITRUS_VERSION}"
 VIAddVersionKey "LegalCopyright" "Citrus contributors"
 ShowInstDetails show
