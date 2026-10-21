@@ -1,6 +1,6 @@
 # Code signing policy
 
-Status: proposed free SignPath Foundation integration, pending application and approval. Existing Citrus preview releases are unsigned. This page does not claim sponsorship, acceptance or an issued certificate.
+Status: free SignPath Foundation application submitted on October 21, 2026; awaiting Foundation review and approval. Existing Citrus preview releases are unsigned. This page does not claim sponsorship, acceptance or an issued certificate.
 
 ## Intended signing scope
 

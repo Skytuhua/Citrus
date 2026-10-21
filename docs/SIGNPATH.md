@@ -4,7 +4,7 @@ This setup uses only the Foundation's free certificate and service. Do not open 
 
 ## Current assessment
 
-Citrus can apply. Acceptance remains SignPath Foundation's decision, and no certificate or trusted signature has been issued for this setup.
+The free Foundation application was submitted on October 21, 2026, and the form confirmed receipt. Acceptance remains SignPath Foundation's decision, and no certificate or trusted signature has been issued for this setup. The signing workflow and policy are published, and policy links are live on the website.
 
 | Check | Evidence and remaining work |
 | --- | --- |
