@@ -3,6 +3,9 @@ contact_links:
   - name: Installation and preview limitations
     url: https://citrous.app/support/
     about: Read the workflow and compatibility notes first.
+  - name: Email support (leo@citrous.app)
+    url: https://citrous.app/support/#contact
+    about: Get help with Citrus at leo@citrous.app.
   - name: Report a security concern privately
     url: https://github.com/Skytuhua/Citrus/security/advisories/new
     about: Do not disclose vulnerability details or private samples in public issues.
