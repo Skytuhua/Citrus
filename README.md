@@ -4,7 +4,7 @@
 <p align="center"><strong>Convert files. Keep your flow.</strong></p>
 <p align="center">Local file conversion and focused editors for Windows.<br>Choose a task from a compact wheel or the workspace. Save a separate result.</p>
 
-<p align="center"><a href="https://github.com/Skytuhua/Citrus/releases"><strong>Download the Windows preview →</strong></a> · <a href="docs/QUICKSTART.md">Quick start</a> · <a href="https://citrous.app">Website</a></p>
+<p align="center"><a href="https://github.com/Skytuhua/Citrus/releases"><strong>Download the Windows preview →</strong></a> · <a href="docs/QUICKSTART.md">Quick start</a> · <a href="https://citrous.app">Website</a> · <a href="mailto:leo@citrous.app">Email support</a></p>
 
 <p align="center">Windows x64 · v0.3.0-preview.2 · Unsigned preview · 1.30 GB download</p>
 
@@ -90,6 +90,7 @@ Citrus is maintained by [Skytuhua](https://github.com/Skytuhua). Reproducible fi
 See the [roadmap](ROADMAP.md) for current priorities and [good first issues](https://github.com/Skytuhua/Citrus/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for scoped starting points. Follow the [Code of Conduct](CODE_OF_CONDUCT.md); conduct concerns have a private reporting route.
 
 - [Report a bug or suggest a feature](https://github.com/Skytuhua/Citrus/issues/new/choose). Include the version, Windows build and exact steps, using a small, non-sensitive sample.
+- For help with Citrus, email [leo@citrous.app](mailto:leo@citrous.app) or visit [online support](https://citrous.app/support/).
 - Read [Support](SUPPORT.md) for troubleshooting and [Contributing](CONTRIBUTING.md) before proposing a change.
 - Follow the [development guide](docs/DEVELOPMENT.md) to build and test from source.
 - Report vulnerabilities through the private route in [Security](SECURITY.md).
