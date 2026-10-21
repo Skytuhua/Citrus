@@ -10,7 +10,7 @@
 
 <p align="center"><a href="https://github.com/Skytuhua/Citrus/actions/workflows/ci.yml"><img src="https://github.com/Skytuhua/Citrus/actions/workflows/ci.yml/badge.svg?branch=main" alt="Source build and core contracts"></a> · <a href="LICENSE">MIT application license</a></p>
 
-<p align="center"><a href="#what-you-can-do">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#install-the-preview">Installation</a> · <a href="#preview-boundaries">Preview limits</a> · <a href="#help-and-contributions">Contributing</a></p>
+<p align="center"><a href="#what-you-can-do">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#install-the-preview">Installation</a> · <a href="#preview-boundaries">Preview limits</a> · <a href="ROADMAP.md">Roadmap</a> · <a href="#help-and-contributions">Contributing</a></p>
 
 [![Citrus wheel and focused editors, composed from the actual interface with sample files](docs/launch/2026-10-21/media/product-hero.webp)](https://citrous.app/#product-demo)
 
@@ -86,6 +86,8 @@ Full Explorer/OLE, physical mixed-DPI and clean-machine installation acceptance 
 ## Help and contributions
 
 Citrus is maintained by [Skytuhua](https://github.com/Skytuhua). Reproducible file issues, documentation corrections and focused contributions are welcome.
+
+See the [roadmap](ROADMAP.md) for current priorities and [good first issues](https://github.com/Skytuhua/Citrus/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for scoped starting points. Follow the [Code of Conduct](CODE_OF_CONDUCT.md); conduct concerns have a private reporting route.
 
 - [Report a bug or suggest a feature](https://github.com/Skytuhua/Citrus/issues/new/choose). Include the version, Windows build and exact steps, using a small, non-sensitive sample.
 - Read [Support](SUPPORT.md) for troubleshooting and [Contributing](CONTRIBUTING.md) before proposing a change.

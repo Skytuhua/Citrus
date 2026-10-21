@@ -6,3 +6,6 @@ contact_links:
   - name: Report a security concern privately
     url: https://github.com/Skytuhua/Citrus/security/advisories/new
     about: Do not disclose vulnerability details or private samples in public issues.
+  - name: Report a conduct concern privately
+    url: https://github.com/Skytuhua/Citrus/blob/main/CODE_OF_CONDUCT.md
+    about: Use the private contact in the policy. Do not post sensitive conduct reports in public issues.
