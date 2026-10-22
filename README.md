@@ -39,27 +39,23 @@ Available operations depend on the actual file and codec. PDF reconstruction and
 
 Move over a choice and release. A key held before dragging also works after the normal Windows drag threshold. Scroll for more wheel pages; gaps retain the last choice, and dropping outside accepts it. The neutral center, Escape or right-click cancels. [Gesture details and settings](docs/QUICKSTART.md#choose-a-task).
 
-<details>
-<summary>View PNG → WEBP in four seconds (animated)</summary>
+### PNG → WEBP in four seconds
 
 [![Drag sample.png, hold Shift, choose WEBP, and keep the original beside the converted copy](docs/launch/2026-10-21/reference-demo-v3/citrus-reference-4s.gif)](https://citrous.app/#product-demo)
 
 The current Citrus wheel and a real PNG → WEBP conversion, composed as an edited demonstration. The original remains untouched. [Watch the four-second video](https://citrous.app/assets/launch-v1/citrus-reference-4s.mp4) · [Media provenance](docs/launch/2026-10-21/reference-demo-v3/README.md).
 
-</details>
-
-<details>
-<summary>See the image and video editors</summary>
+### Image editor
 
 ![Citrus Add BG editor and its saved sample image](docs/launch/2026-10-21/media/image-editor.webp)
 
 Compare the photograph with its original and save a separate result. Add a background, padding and rounded corners when needed.
 
+### Video editor
+
 ![Citrus video editor with direct trim controls](docs/launch/2026-10-21/media/video-editor.webp)
 
 Drag trim or crop handles, scrub to a moment, and step through source frames.
-
-</details>
 
 ## Install the preview
 
