@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0-preview.5 — 2026-10-22
+
+- Use non-solid LZMA compression for the complete installer to reduce its download size.
+- Preserve every offline conversion engine and the application behavior from preview.4.
+
 ## 0.3.0-preview.4 — 2026-10-21
 
 - Filled the wheel backing continuously through its center, retained the selected-format label and center cancellation, and removed the file preview.

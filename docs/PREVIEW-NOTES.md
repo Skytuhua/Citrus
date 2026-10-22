@@ -1,6 +1,6 @@
 # 0.3 preview notes
 
-Citrus 0.3.0-preview.4 polishes the menus and wheel, fills the wheel backing through its center, and fixes eight editing, performance and installer issues. The complete package bundles offline engines. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
+Citrus 0.3.0-preview.5 uses stronger installer compression and retains the menus, wheel and fixes from preview.4. The complete package bundles every offline engine. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
 
 ## Current boundaries
 
@@ -15,6 +15,8 @@ Citrus 0.3.0-preview.4 polishes the menus and wheel, fills the wheel backing thr
 - Native glass excludes its windows from capture to prevent feedback. Recordings may omit it. Opaque accessibility/device fallbacks remain available.
 
 ## Verification and performance
+
+The runtime and UI records below are from preview.4. Preview.5 changes installer compression; its packaging checks are recorded with the release.
 
 Local verification recorded **271 core passes**, **609 conversion passes with four capability skips**, **77 editor regression passes**, and **126 focused wheel passes with three opt-in native cancellation skips**. Batches overlap and must not be summed. Isolated installer transitions passed nine update cases and two recovery cases. Source-hash, cancellation and collision-safe publication checks remain enabled.
 
