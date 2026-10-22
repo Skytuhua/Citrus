@@ -54,7 +54,7 @@ public sealed class MediaEditorReferenceTests(DesktopFixture desktop)
             }
             using var themes=new ThemeManager(System.Windows.Application.Current);
             using var presentation=new WindowPresentationService(System.Windows.Application.Current,themes,()=>new CitrusSettings());
-            var operation=engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(engine);Task? check=null;
+            var operation=engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(engine){ConfirmDiscard=()=>true};Task? check=null;
             presentation.Attach(window,(MaterialSurface)window.Content);
             window.Loaded+=(_,_)=>check=AssertState();
             await window.ShowEditorAsync(new(operation,[input],operation.Label,new(),root,SubmissionOrigin.Home),default);

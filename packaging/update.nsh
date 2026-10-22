@@ -27,16 +27,12 @@ Var HashContext
 Var HashBuffer
 Var HashDigest
 Var HashRead
-Var HashIndex
-Var HashByte
-Var HashCharacter
 
 !macro HashFunction PREFIX
 Function ${PREFIX}HashFile
   Pop $HashPath
   StrCpy $HashValue ""
   StrCpy $HashFileHandle -1
-  StrCpy $HashAlgorithm 0
   StrCpy $HashContext 0
   StrCpy $HashBuffer 0
   StrCpy $HashDigest 0
@@ -45,10 +41,15 @@ Function ${PREFIX}HashFile
   ${If} $HashFileHandle == -1
     Goto hash_cleanup
   ${EndIf}
-  System::Call 'bcrypt::BCryptOpenAlgorithmProvider(*p.r0, w "SHA256", p 0, i 0) i.r1'
-  StrCpy $HashAlgorithm $0
-  ${If} $1 != 0
-    Goto hash_cleanup
+  ${If} $HashAlgorithm == 0
+  ${OrIf} $HashAlgorithm == ""
+    ; Opening the provider for every file adds minutes to the complete offline pack.
+    System::Call 'bcrypt::BCryptOpenAlgorithmProvider(*p.r0, w "SHA256", p 0, i 0) i.r1'
+    StrCpy $HashAlgorithm $0
+    ${If} $1 != 0
+      StrCpy $HashAlgorithm 0
+      Goto hash_cleanup
+    ${EndIf}
   ${EndIf}
   System::Call 'bcrypt::BCryptCreateHash(p $HashAlgorithm, *p.r0, p 0, i 0, p 0, i 0, i 0) i.r1'
   StrCpy $HashContext $0
@@ -82,17 +83,10 @@ Function ${PREFIX}HashFile
     ${If} $1 != 0
       Goto hash_cleanup
     ${EndIf}
-    StrCpy $HashIndex 0
-    hash_hex:
-      IntOp $HashByte $HashDigest + $HashIndex
-      System::Call '*$HashByte(&i1 .r0)'
-      IntOp $0 $0 & 0xFF
-      IntFmt $HashCharacter "%02x" $0
-      StrCpy $HashValue "$HashValue$HashCharacter"
-      IntOp $HashIndex $HashIndex + 1
-      ${If} $HashIndex < 32
-        Goto hash_hex
-      ${EndIf}
+    System::Call 'crypt32::CryptBinaryToStringW(p $HashDigest, i 32, i 0x4000000c, w.r0, *i ${NSIS_MAX_STRLEN}) i.r1'
+    ${If} $1 != 0
+      StrCpy $HashValue $0
+    ${EndIf}
   hash_cleanup:
     ${If} $HashDigest != 0
       System::Free $HashDigest
@@ -103,13 +97,17 @@ Function ${PREFIX}HashFile
     ${If} $HashContext != 0
       System::Call 'bcrypt::BCryptDestroyHash(p $HashContext)'
     ${EndIf}
-    ${If} $HashAlgorithm != 0
-      System::Call 'bcrypt::BCryptCloseAlgorithmProvider(p $HashAlgorithm, i 0)'
-    ${EndIf}
     ${If} $HashFileHandle != -1
       System::Call 'kernel32::CloseHandle(p $HashFileHandle)'
     ${EndIf}
     Push $HashValue
+FunctionEnd
+Function ${PREFIX}CloseHashProvider
+  ${If} $HashAlgorithm != 0
+  ${AndIf} $HashAlgorithm != ""
+    System::Call 'bcrypt::BCryptCloseAlgorithmProvider(p $HashAlgorithm, i 0)'
+    StrCpy $HashAlgorithm 0
+  ${EndIf}
 FunctionEnd
 !macroend
 !insertmacro HashFunction ""
@@ -488,6 +486,32 @@ Function BeginUpgrade
   Call FlushOwnership
 FunctionEnd
 
+!macro VerifyPackage PREFIX
+  !include "${GENERATED}\verify.nsh"
+!macroend
+
+Function un.CleanupUpdateBackup
+  ReadRegStr $UpdateState HKCU "${CITRUS_REGKEY}" "UpdateState"
+  ${If} $UpdateState == ""
+    Return
+  ${EndIf}
+  ${If} $UpdateState != "Committed"
+    Call un.Fail
+  ${EndIf}
+  ; Verify the installed program and its runtime before executing cleanup code.
+  !insertmacro VerifyPackage "un."
+  ClearErrors
+  !ifdef CITRUS_TEST_FIXTURE
+    ExecWait '$\"$INSTDIR\Citrus.Windows.exe$\" --cleanup-update-backup-fixture=${CITRUS_TEST_FIXTURE}' $0
+  !else
+    ExecWait '$\"$INSTDIR\Citrus.Windows.exe$\" --cleanup-update-backup' $0
+  !endif
+  ${If} ${Errors}
+  ${OrIf} $0 != 0
+    Call un.Fail
+  ${EndIf}
+FunctionEnd
+
 Function CommitUpgrade
   !ifdef CITRUS_TEST_CORRUPT_BEFORE_VERIFY
     !ifndef CITRUS_TEST_FIXTURE
@@ -497,7 +521,7 @@ Function CommitUpgrade
     FileWrite $0 "corrupt fixture bytes"
     FileClose $0
   !endif
-  !include "${GENERATED}\verify.nsh"
+  !insertmacro VerifyPackage ""
   DeleteRegValue HKCU "${CITRUS_REGKEY}" "UpdateFailedVersion"
   DeleteRegValue HKCU "${CITRUS_REGKEY}" "UpdateLastError"
   ClearErrors

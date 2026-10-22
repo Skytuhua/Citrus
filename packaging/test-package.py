@@ -508,4 +508,14 @@ class OfflineFeaturePackTests(unittest.TestCase):
                     with self.assertRaises(ValueError): self.verify()
                 finally: (self.root / name).unlink()
 
+class InstalledVerificationTests(unittest.TestCase):
+    def test_verification_reports_progress_and_supports_uninstall_prefix(self):
+        files = {f'item-{index}.bin': 'a' * 64 for index in range(201)}
+        checks = package.verification_instructions(files)
+        self.assertEqual(checks.count('Call ${PREFIX}HashFile'), 201)
+        self.assertEqual(checks.count('Call ${PREFIX}Fail'), 201)
+        for count in [0, 100, 200, 201]:
+            self.assertIn(f'Verifying installed files ({count}/201)', checks)
+        self.assertIn('Installed files verified.', checks)
+
 if __name__ == '__main__': unittest.main()

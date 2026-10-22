@@ -37,7 +37,7 @@ public sealed class LongMediaNavigationTests(DesktopFixture desktop)
             {
                 input=Path.Combine(root,"long.wav");using var writer=new BinaryWriter(File.Create(input));const int count=140*48000;writer.Write("RIFF"u8);writer.Write(36+count*2);writer.Write("WAVEfmt "u8);writer.Write(16);writer.Write((short)1);writer.Write((short)1);writer.Write(48000);writer.Write(96000);writer.Write((short)2);writer.Write((short)16);writer.Write("data"u8);writer.Write(count*2);for(int i=0;i<count;i++)writer.Write((short)(5000*Math.Sin(i*2*Math.PI*440/48000)));
             }
-            var operation=engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(engine);Task? checking=null;EditorDocument? document=null;
+            var operation=engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(engine){ConfirmDiscard=()=>true};Task? checking=null;EditorDocument? document=null;
             window.Loaded+=(_,_)=>checking=Check();await window.ShowEditorAsync(new(operation,[input],operation.Label,new(),root,SubmissionOrigin.Home),default);await checking!;
             Assert.NotNull(document);
             if(id=="video.snapshot")

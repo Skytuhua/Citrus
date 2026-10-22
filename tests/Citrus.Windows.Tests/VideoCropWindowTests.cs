@@ -15,6 +15,7 @@ using Button = System.Windows.Controls.Button;
 using Image = System.Windows.Controls.Image;
 using Slider = System.Windows.Controls.Slider;
 using ComboBox = System.Windows.Controls.ComboBox;
+using TextBox = System.Windows.Controls.TextBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace Citrus.Windows.Tests;
@@ -22,6 +23,55 @@ namespace Citrus.Windows.Tests;
 [Collection("Desktop")]
 public sealed class VideoCropWindowTests(DesktopFixture desktop)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Closing_an_uncommitted_crop_field_requires_discard_confirmation(bool escape) => desktop.RunAsync(async () =>
+    {
+        using var files = new Fixture(); await files.InitializeAsync();int confirmations=0;bool discard=false;
+        var result=await Show(files,window=>
+        {
+            ((VideoCropWindow)window).ConfirmDiscard=()=>{confirmations++;return discard;};
+            ((TextBox)window.FindName("WidthPercent")).Text="unfinished";
+            if(escape)window.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(window),0,Key.Escape){RoutedEvent=Keyboard.PreviewKeyDownEvent});
+            else window.Close();
+            Assert.True(window.IsVisible);Assert.Equal(1,confirmations);
+            discard=true;window.Close();Assert.False(window.IsVisible);Assert.Equal(2,confirmations);return Task.CompletedTask;
+        });
+        Assert.Null(result);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Unchanged_or_applied_crop_closes_without_discard_prompt(bool apply) => desktop.RunAsync(async () =>
+    {
+        using var files=new Fixture();await files.InitializeAsync();int confirmations=0;
+        var result=await Show(files,window=>
+        {
+            ((VideoCropWindow)window).ConfirmDiscard=()=>{confirmations++;return false;};
+            if(apply){((Slider)window.FindName("WidthSlider")).Value=60;Click(window,"ApplyButton");}
+            else window.Close();
+            Assert.False(window.IsVisible);Assert.Equal(0,confirmations);return Task.CompletedTask;
+        });
+        Assert.Equal(apply,result is not null);
+    });
+
+    [Fact]
+    public Task Application_shutdown_closes_a_dirty_crop_editor_without_prompt() => desktop.RunAsync(async () =>
+    {
+        using var files=new Fixture();await files.InitializeAsync();int confirmations=0;
+        await Show(files,window=>
+        {
+            ((VideoCropWindow)window).ConfirmDiscard=()=>{confirmations++;return false;};
+            ((TextBox)window.FindName("WidthPercent")).Text="unfinished";
+            var app=(App)System.Windows.Application.Current;var quitting=typeof(App).GetProperty(nameof(App.IsQuitting))!;
+            try{quitting.SetValue(app,true);window.Close();Assert.False(window.IsVisible);Assert.Equal(0,confirmations);}
+            finally{quitting.SetValue(app,false);}
+            return Task.CompletedTask;
+        });
+    });
+
     [Fact]
     public Task Surround_input_plays_video_with_explicit_silent_preview_notice() => desktop.RunAsync(async () =>
     {
@@ -188,7 +238,7 @@ public sealed class VideoCropWindowTests(DesktopFixture desktop)
 
     private static async Task<EditorSubmissionBatch?> Show(Fixture fixture, Func<Window, Task> exercise)
     {
-        var window = new VideoCropWindow(fixture.Engine);
+        var window = new VideoCropWindow(fixture.Engine){ConfirmDiscard=()=>true};
         var request = new EditorOpenRequest(VideoCropEngine.Operation, [fixture.Input], "Crop", new(), fixture.Root, SubmissionOrigin.Home);
         using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         Exception? failure = null;

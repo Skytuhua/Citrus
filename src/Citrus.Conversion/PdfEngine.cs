@@ -110,7 +110,7 @@ public sealed partial class PdfEngine(OutputWriter? outputWriter = null) : IConv
                             await RenderAsync(inputs[0], pages, destination, stem, outputs, progress, token, request.Operation.Id == "pdf.jpg" ? "jpg" : "png").ConfigureAwait(false);
                             break;
                         case "pdf.docx": case "pdf.pptx": case "pdf.xlsx": case "pdf.epub": case "pdf.markdown": case "pdf.text":
-                            var semantic = await Editing.Pdf.PdfSemanticExtractor.ExtractAsync(first, pages, FeaturePackDirectory, token).ConfigureAwait(false);
+                            var semantic = await Editing.Pdf.PdfSemanticExtractor.ExtractAsync(first, pages, FeaturePackDirectory, token, recoverArtwork: request.Operation.Id != "pdf.text").ConfigureAwait(false);
                             warnings.AddRange(semantic.Warnings);
                             string extension = request.Operation.OutputExtension!;
                             if (extension == ".md" && semantic.Pages.Any(page => !page.Images.IsEmpty))
@@ -194,7 +194,7 @@ public sealed partial class PdfEngine(OutputWriter? outputWriter = null) : IConv
                 try
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    input.Stream.Position = 0;
+                    ValidateRasterSize(input.Stream, page, 300);
                     // The string overload expects Base64. Render the stream while holding the global engine gate.
                     if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
                     {
@@ -209,6 +209,20 @@ public sealed partial class PdfEngine(OutputWriter? outputWriter = null) : IConv
             token.ThrowIfCancellationRequested();
             progress?.Report(new((double)outputs.Count / pages.Count, "Page image ready"));
         }
+    }
+
+    private static void ValidateRasterSize(Stream stream, int page, int dpi)
+    {
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+        {
+            stream.Position = 0;
+            var bounds = PDFtoImage.Conversion.GetPageSize(stream, page - 1, leaveOpen: true);
+            double width = Math.Ceiling((double)bounds.Width * dpi / 72d), height = Math.Ceiling((double)bounds.Height * dpi / 72d);
+            if (!double.IsFinite(width) || !double.IsFinite(height) || width <= 0 || height <= 0 || width * height > 32_000_000)
+                throw new NotSupportedException("PDF raster exceeds the 32-megapixel page limit. Choose a lower DPI.");
+            stream.Position = 0;
+        }
+        else throw new PlatformNotSupportedException("PDF rendering is supported on Windows and Linux.");
     }
 
     private sealed class PdfInput(FileStream stream, PdfDocument document) : IDisposable

@@ -216,6 +216,11 @@ public partial class MainWindow : Window, IDisposable
         RefreshJobs();
         if (IsVisible && submitted.Count > 0) JobsPanel.IsExpanded = true;
     }
+    internal void RemoveJobs(IReadOnlyCollection<ConversionJob> retired)
+    {
+        foreach (var job in retired)
+            if (jobModels.Remove(job, out var model)) jobs.Remove(model);
+    }
     public void RefreshJobs(IReadOnlyCollection<ConversionJob>? changedJobs = null)
     {
         JobsPanel.Visibility = jobs.Count + failures.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -234,7 +239,7 @@ public partial class MainWindow : Window, IDisposable
                 default: pending++; break;
             }
         }
-        JobSummary.Text = $"Jobs · {succeeded} succeeded · {failed} failed · {canceled} canceled · {pending} pending";
+        JobSummary.Text = $"Recent jobs · {succeeded} succeeded · {failed} failed · {canceled} canceled · {pending} pending";
     }
     private void CancelJob(object sender, RoutedEventArgs e) { if (((Button)sender).Tag is JobViewModel model) model.Job.Cancel(); }
     private async void RetryJob(object sender, RoutedEventArgs e)
@@ -277,6 +282,7 @@ public partial class MainWindow : Window, IDisposable
     public void AddSubmissionFailure(string message, Func<Task>? retry)
     {
         failures.Insert(0, new(message, retry));
+        if (failures.Count > App.CompletedJobHistoryLimit) failures.RemoveAt(failures.Count - 1);
         if (IsVisible) JobsPanel.IsExpanded = true;
         RefreshJobs();
     }

@@ -17,8 +17,12 @@ try {
                          (Join-Path $dist 'Citrus-ThirdParty-Sources.zip'), (Join-Path $dist 'source-distribution.json'))) {
         $resolvedOutput = [IO.Path]::GetFullPath($path)
         if (-not $resolvedOutput.StartsWith([IO.Path]::GetFullPath($dist) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output escaped distribution directory' }
+        for ($ancestor = $resolvedOutput; $ancestor; $ancestor = [IO.Path]::GetDirectoryName($ancestor)) {
+            try { $entry = Get-Item -LiteralPath $ancestor -Force -ErrorAction Stop }
+            catch [Management.Automation.ItemNotFoundException] { continue }
+            if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked output path' }
+        }
         if (Test-Path -LiteralPath $resolvedOutput) {
-            if ((Get-Item -LiteralPath $resolvedOutput).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked output path' }
             if ($Phase -ne 'Installer') { Remove-Item -LiteralPath $resolvedOutput -Recurse -Force }
         }
     }

@@ -21,6 +21,74 @@ namespace Citrus.Windows.Tests;
 public sealed class MediaEditorInputRegressionTests(DesktopFixture desktop)
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Closing_an_uncommitted_media_field_requires_discard_confirmation(bool escape)=>desktop.RunAsync(async()=>
+    {
+        using var fixture=await Fixture.CreateAsync();int confirmations=0;bool discard=false;
+        var result=await Show(fixture,"audio.compress",window=>
+        {
+            window.ConfirmDiscard=()=>{confirmations++;return discard;};
+            Controls<TextBox>(window).Single(c=>AutomationProperties.GetName(c)=="Compression value").Text="unfinished";
+            if(escape)window.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,PresentationSource.FromVisual(window),0,System.Windows.Input.Key.Escape){RoutedEvent=System.Windows.Input.Keyboard.PreviewKeyDownEvent});
+            else window.Close();
+            Assert.True(window.IsVisible);Assert.Equal(1,confirmations);
+            discard=true;window.Close();Assert.False(window.IsVisible);Assert.Equal(2,confirmations);return Task.CompletedTask;
+        });
+        Assert.Null(result);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Unchanged_or_applied_media_closes_without_discard_prompt(bool apply)=>desktop.RunAsync(async()=>
+    {
+        using var fixture=await Fixture.CreateAsync();int confirmations=0;
+        var result=await Show(fixture,"audio.compress",async window=>
+        {
+            window.ConfirmDiscard=()=>{confirmations++;return false;};
+            if(apply)
+            {
+                Controls<TextBox>(window).Single(c=>AutomationProperties.GetName(c)=="Compression value").Text="73";
+                ((Button)window.FindName("ApplyButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Wait(()=>!window.IsVisible);
+            }
+            else window.Close();
+            Assert.False(window.IsVisible);Assert.Equal(0,confirmations);
+        });
+        Assert.Equal(apply,result is not null);
+    });
+
+    [Fact]
+    public Task Edits_to_a_previous_batch_source_still_require_confirmation()=>desktop.RunAsync(async()=>
+    {
+        using var fixture=await Fixture.CreateAsync();string second=Path.Combine(fixture.Root,"second.wav");File.Copy(fixture.Input,second);int confirmations=0;
+        await Show(fixture,"audio.compress",async window=>
+        {
+            window.ConfirmDiscard=()=>{confirmations++;return false;};
+            Controls<TextBox>(window).Single(c=>AutomationProperties.GetName(c)=="Compression value").Text="73";
+            Controls<ComboBox>(window).Single(c=>c.Items.Count==2).SelectedIndex=1;
+            await Wait(()=>window.IsReady&&window.CurrentDocument!.Sources[0].Path==second);
+            window.Close();Assert.True(window.IsVisible);Assert.Equal(1,confirmations);
+        },[fixture.Input,second]);
+    });
+
+    [Fact]
+    public Task Application_shutdown_closes_a_dirty_media_editor_without_prompt()=>desktop.RunAsync(async()=>
+    {
+        using var fixture=await Fixture.CreateAsync();int confirmations=0;
+        await Show(fixture,"audio.compress",window=>
+        {
+            window.ConfirmDiscard=()=>{confirmations++;return false;};
+            Controls<TextBox>(window).Single(c=>AutomationProperties.GetName(c)=="Compression value").Text="unfinished";
+            var app=(App)System.Windows.Application.Current;var quitting=typeof(App).GetProperty(nameof(App.IsQuitting))!;
+            try{quitting.SetValue(app,true);window.Close();Assert.False(window.IsVisible);Assert.Equal(0,confirmations);}
+            finally{quitting.SetValue(app,false);}
+            return Task.CompletedTask;
+        });
+    });
+
+    [Theory]
     [InlineData("audio.compress","Compression value","73")]
     [InlineData("audio.metadata","title","New title")]
     [InlineData("audio.visualizer","Wave color hexadecimal","#123456")]
@@ -106,9 +174,9 @@ public sealed class MediaEditorInputRegressionTests(DesktopFixture desktop)
 
     private static async Task<EditorSubmissionBatch?> Show(Fixture fixture,string id,Func<MediaEditorWindow,Task> exercise,string[]? inputs=null)
     {
-        var operation=fixture.Engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(fixture.Engine);Task? check=null;
+        var operation=fixture.Engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(fixture.Engine){ConfirmDiscard=()=>true};Task? check=null;
         window.Loaded+=(_,_)=>check=Check();var result=await window.ShowEditorAsync(new(operation,[..inputs??[fixture.Input]],operation.Label,new(),fixture.Root,SubmissionOrigin.Home),default);await check!;return result;
-        async Task Check(){try{await Wait(()=>window.IsReady);await exercise(window);}finally{if(window.IsVisible)window.Close();}}
+        async Task Check(){try{await Wait(()=>window.IsReady);await exercise(window);}finally{window.ConfirmDiscard=()=>true;if(window.IsVisible)window.Close();}}
     }
     private static IEnumerable<T> Controls<T>(DependencyObject root)where T:DependencyObject
     {for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++){var child=VisualTreeHelper.GetChild(root,i);if(child is T match)yield return match;foreach(var nested in Controls<T>(child))yield return nested;}}

@@ -141,7 +141,7 @@ Function ${PREFIX}AcquireGuards
     Goto identity_error
   ${EndIf}
   StrCpy $IdentitySidText $2
-  System::Call '*$IdentitySidText(&w${NSIS_MAX_STRLEN} .r3)'
+  System::Call 'kernel32::lstrcpynW(w.r3, p $IdentitySidText, i ${NSIS_MAX_STRLEN}) p'
   StrCpy $UserSid $3
   System::Call 'kernel32::GetCurrentProcessId() i.r0'
   System::Call 'kernel32::ProcessIdToSessionId(i r0, *i.r1) i.r0'
@@ -218,6 +218,7 @@ Function ${PREFIX}AcquireGuards
 FunctionEnd
 
 Function ${PREFIX}ReleaseGuards
+  Call ${PREFIX}CloseHashProvider
   ${If} $SessionGuard != 0
     System::Call 'kernel32::ReleaseMutex(p $SessionGuard)'
     System::Call 'kernel32::CloseHandle(p $SessionGuard)'
@@ -478,6 +479,7 @@ SectionEnd
 
 Section "Uninstall"
   Call un.CheckInstallPaths
+  Call un.CleanupUpdateBackup
   StrCpy $DeleteFailed 0
   SetOutPath "$TEMP"
   !include "${GENERATED}\uninstall.nsh"

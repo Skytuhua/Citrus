@@ -32,7 +32,7 @@ public sealed class CompactVideoEditorTests(DesktopFixture desktop)
             await File.WriteAllBytesAsync(raw, Enumerable.Repeat(new byte[] { 32, 64, 128, 255 }, 32 * 24 * 12).SelectMany(pixel => pixel).ToArray());
             await process.RunAsync(["-f", "rawvideo", "-pixel_format", "bgra", "-video_size", "32x24", "-framerate", "12", "-i", raw, "-c:v", "mpeg4", first], null, default);
             File.Copy(first, second); var operation = engine.Operations.Single(item => item.Id == "video.mute");
-            var window = new MediaEditorWindow(engine); Task? checking = null;
+            var window = new MediaEditorWindow(engine){ConfirmDiscard=()=>true}; Task? checking = null;
             window.Loaded += (_, _) => checking = Check();
             await window.ShowEditorAsync(new(operation, [first, second], operation.Label, new(), root, SubmissionOrigin.Home), default); await checking!;
             async Task Check()
@@ -65,7 +65,7 @@ public sealed class CompactVideoEditorTests(DesktopFixture desktop)
         var empty = new HashSet<string>();
         string unused = Path.Combine(Path.GetTempPath(), "citrus-layout-only.exe");
         var engine = new MediaEditorEngine(new MediaProcess(unused, unused), new(empty, empty, empty, empty, false), new());
-        var window = new MediaEditorWindow(engine);
+        var window = new MediaEditorWindow(engine){ConfirmDiscard=()=>true};
         Assert.InRange(window.Height, 400, 560);
         Assert.InRange(window.Width, 440, 680);
         window.Close();
@@ -105,7 +105,7 @@ public sealed class CompactVideoEditorTests(DesktopFixture desktop)
                     for (int pixel = 0; pixel < 96 * 64; pixel++) file.Write([(byte)(frame * 12), 64, 192, 255]);
             await process.RunAsync(["-f", "rawvideo", "-pixel_format", "bgra", "-video_size", "96x64", "-framerate", "12", "-i", raw, "-c:v", "mpeg4", "-q:v", "2", input], null, default);
             var operation = engine.Operations.Single(o => o.Id == id);
-            var window = new MediaEditorWindow(engine);
+            var window = new MediaEditorWindow(engine){ConfirmDiscard=()=>true};
             EditorDocument? edited = null;
             var opening = Stopwatch.StartNew();
             Task? checking = null;

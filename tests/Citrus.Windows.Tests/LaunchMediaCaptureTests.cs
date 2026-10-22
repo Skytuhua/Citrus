@@ -150,7 +150,7 @@ public sealed class LaunchMediaCaptureTests(DesktopFixture desktop)
     private static async Task CaptureVideo(string input, string output, WindowPresentationService presentation)
     {
         var process = MediaProcess.Bundled(); var engine = new MediaEditorEngine(process, await process.DiscoverCapabilitiesAsync(default), new());
-        var operation = engine.Operations.Single(item => item.Id == "video.trim"); var window = new MediaEditorWindow(engine);
+        var operation = engine.Operations.Single(item => item.Id == "video.trim"); var window = new MediaEditorWindow(engine){ConfirmDiscard=()=>true};
         presentation.Attach(window, (MaterialSurface)window.Content);
         Task? exercise = null; EditorDocument? edited = null; var observed = new List<object>();
         window.Loaded += (_, _) => exercise = Exercise();

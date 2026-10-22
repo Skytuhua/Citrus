@@ -66,11 +66,7 @@ public sealed partial class PdfEngine
             try
             {
                 using var source = PdfInput.Open(path);
-                using (var pig = Pig.Open(path))
-                {
-                    var bounds = pig.GetPage(page);
-                    if (bounds.Width * dpi / 72d * bounds.Height * dpi / 72d > 32_000_000) throw new NotSupportedException("PDF raster exceeds the 32-megapixel page limit. Choose a lower DPI.");
-                }
+                ValidateRasterSize(source.Stream, page, dpi);
                 string output=Path.Combine(scope,"page.png");
                 await Task.Run(() =>
                 {
@@ -122,7 +118,7 @@ public sealed partial class PdfEngine
                 var pages=ImmutableArray.CreateBuilder<Editing.Pdf.PdfSemanticPage>();
                 foreach (var page in recipe.Pages)
                 {
-                    var semantic=await Editing.Pdf.PdfSemanticExtractor.ExtractAsync(staged[page.SourceId],[page.OneBasedPage],FeaturePackDirectory,ct).ConfigureAwait(false);
+                    var semantic=await Editing.Pdf.PdfSemanticExtractor.ExtractAsync(staged[page.SourceId],[page.OneBasedPage],FeaturePackDirectory,ct,recoverArtwork:recipe.Mode!=PdfOutputMode.Text).ConfigureAwait(false);
                     pages.AddRange(semantic.Pages); warnings.AddRange(semantic.Warnings);
                 }
                 string name="edited."+doc.Export.FormatId;

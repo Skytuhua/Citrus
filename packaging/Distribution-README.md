@@ -1,6 +1,6 @@
 # Citrus for Windows
 
-**0.3.0-preview.5 · Windows x64 · unsigned public preview**
+**0.3.0-preview.6 · Windows x64 · unsigned public preview**
 
 Citrus puts file conversions and small editing tools beside your files. Process
 images, video, audio, PDFs, documents, presentations, spreadsheets, EPUBs,

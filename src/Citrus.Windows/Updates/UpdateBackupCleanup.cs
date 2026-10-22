@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Diagnostics;
+using System.Security.Principal;
 using Microsoft.Win32;
 
 namespace Citrus.Windows.Updates;
@@ -6,6 +8,67 @@ namespace Citrus.Windows.Updates;
 internal static class UpdateBackupCleanup
 {
     internal static readonly string[] JournalKeys = ["UpdateState", "UpdateBackupPath", "UpdatePreviousInventory", "UpdateInstalledInventory", "UpdatePreviousSdkLicense", "UpdatePreviousVersion"];
+
+    internal static async Task<int?> RunUninstallCleanupAsync(IReadOnlyList<string> arguments)
+    {
+        const string command = "--cleanup-update-backup", fixture = command + "-fixture=";
+        if (arguments.Count == 0 || !arguments[0].StartsWith(command, StringComparison.Ordinal)) return null;
+        if (arguments.Count != 1) return 23;
+        string name = "Citrus", suffix = "";
+        if (arguments[0].StartsWith(fixture, StringComparison.Ordinal))
+        {
+            string identity = arguments[0][fixture.Length..];
+            if (identity.Length != 32 || identity.Any(character => !"0123456789abcdef".Contains(character))) return 23;
+            name += "-UpdateFixture-" + identity;
+            suffix = "-fixture-" + identity;
+        }
+        else if (arguments[0] != command) return 23;
+        try
+        {
+            using var user = WindowsIdentity.GetCurrent();
+            using var process = Process.GetCurrentProcess();
+            string? sid = user.User?.Value;
+            if (sid is null || !GateHeld(@"Global\Citrus-Install-" + sid + suffix) ||
+                !GateHeld($@"Local\Citrus-{sid}-{process.SessionId}{suffix}")) return 23;
+            using var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
+            using var key = hive.OpenSubKey(@"Software\" + name, writable: true);
+            if (key is null) return 23;
+            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", name);
+            var installation = UpdateInstallation.Validate(AppContext.BaseDirectory, directory,
+                key.GetValue("InstallLocation") as string, key.GetValue("PackageInventory") as string,
+                key.GetValue("RecoveryIdentity") as string, acceptedLicense: null);
+            if (installation is null) return 23;
+            string? state = key.GetValue("UpdateState") as string;
+            if (string.IsNullOrEmpty(state)) return 0;
+            if (state != "Committed") return 23;
+            string inventory = installation.InventoryHash;
+            if (!StringComparer.OrdinalIgnoreCase.Equals(key.GetValue("UpdateCleanupCompleteInventory") as string, inventory))
+            {
+                string? backup = key.GetValue("UpdateBackupPath") as string;
+                if (backup is null || !await CleanupAsync(directory, inventory, backup,
+                    key.GetValue("UpdatePreviousInventory") as string, key.GetValue("UpdateInstalledInventory") as string,
+                    CancellationToken.None, () => { key.SetValue("UpdateCleanupCompleteInventory", inventory); key.Flush(); }).ConfigureAwait(false)) return 23;
+            }
+            ClearCommittedJournal(key, inventory);
+            return 0;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+        { return 23; }
+    }
+
+    private static bool GateHeld(string name)
+    {
+        Mutex gate;
+        try { gate = Mutex.OpenExisting(name); }
+        catch (WaitHandleCannotBeOpenedException) { return false; }
+        using var ownedGate = gate;
+        bool acquired;
+        try { acquired = gate.WaitOne(0); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) return true;
+        gate.ReleaseMutex();
+        return false;
+    }
     internal static async Task ConfirmSuccessfulBootAsync(UpdateInstallation installation, CancellationToken ct)
     {
         try

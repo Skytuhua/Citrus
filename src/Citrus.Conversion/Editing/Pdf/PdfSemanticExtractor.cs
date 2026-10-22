@@ -20,7 +20,7 @@ public sealed record PdfSemanticDocument(ImmutableArray<PdfSemanticPage> Pages, 
 /// <summary>One coordinate-bearing model shared by all editable PDF exporters.</summary>
 public static class PdfSemanticExtractor
 {
-    public static Task<PdfSemanticDocument> ExtractAsync(string path, IReadOnlyList<int> selected, string featurePack, CancellationToken ct) => Task.Run(async () =>
+    public static Task<PdfSemanticDocument> ExtractAsync(string path, IReadOnlyList<int> selected, string featurePack, CancellationToken ct, bool recoverArtwork = true) => Task.Run(async () =>
     {
         using var input = PdfDocument.Open(path, new ParsingOptions { ClipPaths = true });
         if (input.IsEncrypted) throw new NotSupportedException("Encrypted PDFs are not supported.");
@@ -115,7 +115,7 @@ public static class PdfSemanticExtractor
                 if(words.Length>0&&reconstructedRegions.Count>0)warnings.Add($"Page {number}: a raster text region was replaced with editable OCR; artwork inside that scanned region may require manual restoration.");
             }
             var images = ImmutableArray.CreateBuilder<PdfImageObject>();
-            foreach (var image in embeddedImages)
+            if (recoverArtwork) foreach (var image in embeddedImages)
             {
                 ct.ThrowIfCancellationRequested(); var box = image.BoundingBox;
                 var bounds=new RectD(box.Left,page.Height-box.Top,box.Width,box.Height);

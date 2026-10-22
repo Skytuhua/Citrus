@@ -104,6 +104,10 @@ jobs:
         run: |
           python packaging/test-update-metadata.py
           if($LASTEXITCODE){throw 'Updater metadata contracts failed'}
+          python packaging/test-installer-identity.py
+          if($LASTEXITCODE){throw 'Installer identity memory guard failed'}
+          python packaging/test-publish-paths.py
+          if($LASTEXITCODE){throw 'Publish output path guards failed'}
           python packaging/test-signpath.py
           if($LASTEXITCODE){throw 'Signing verification contracts failed'}
           python packaging/test-update-installer.py

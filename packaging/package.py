@@ -315,14 +315,18 @@ def version_include():
             '!define SDK_LICENSE_SHA256 "' + sdk + '"\n')
 
 def verification_instructions(files):
-    checks = []
-    for name, digest in sorted(files.items()):
+    total = len(files)
+    checks = [f'DetailPrint "Verifying installed files (0/{total})..."']
+    for index, (name, digest) in enumerate(sorted(files.items()), 1):
         safe(name)
         if not re.fullmatch('[0-9a-f]{64}', digest):
             raise ValueError('Invalid installed-byte verification hash')
         literal = name.replace('/', '\\').replace('$', '$$')
-        checks += ['Push "$INSTDIR\\' + literal + '"', 'Call HashFile', 'Pop $0',
-                   'StrCmp $0 "' + digest + '" +2', 'Call Fail']
+        checks += ['Push "$INSTDIR\\' + literal + '"', 'Call ${PREFIX}HashFile', 'Pop $0',
+                   'StrCmp $0 "' + digest + '" +2', 'Call ${PREFIX}Fail']
+        if index % 100 == 0 or index == total:
+            checks += [f'DetailPrint "Verifying installed files ({index}/{total})..."']
+    checks += ['DetailPrint "Installed files verified."']
     return '\n'.join(checks) + '\n'
 
 def verify(root, source_root=None):

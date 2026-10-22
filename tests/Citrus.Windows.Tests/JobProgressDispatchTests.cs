@@ -18,6 +18,8 @@ public sealed class JobProgressDispatchTests(DesktopFixture desktop)
         var jobs = Enumerable.Range(0, 3).Select(index => queue.EnqueueFailure(new(operation, [$"source-{index}.txt"], new(), null),
             new InvalidOperationException("Expected fixture failure."))).ToArray();
         var changed = typeof(App).GetMethod("JobChanged", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var tracked = (List<ConversionJob>)typeof(App).GetField("jobs", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(app)!;
+        tracked.AddRange(jobs);
         int posted = 0;
         DispatcherHookEventHandler observe = (_, args) =>
         {
@@ -37,7 +39,24 @@ public sealed class JobProgressDispatchTests(DesktopFixture desktop)
             Assert.Equal(1, posted);
             Assert.All(jobs, job => Assert.Contains(job, notified));
         }
-        finally { foreach (var job in jobs) notified.Remove(job); }
+        finally { foreach (var job in jobs) { notified.Remove(job); tracked.Remove(job); } }
+    });
+
+    [Fact]
+    public Task Terminal_notice_before_registration_is_presented_once_after_tracking() => desktop.RunAsync(() =>
+    {
+        var app=(App)Application.Current;var flags=BindingFlags.Instance|BindingFlags.NonPublic;
+        var job=CreateJobs(1)[0];var notified=(HashSet<ConversionJob>)typeof(App).GetField("notified",flags)!.GetValue(app)!;
+        var tracked=(List<ConversionJob>)typeof(App).GetField("jobs",flags)!.GetValue(app)!;
+        try
+        {
+            typeof(App).GetMethod("RefreshChangedJobs",flags)!.Invoke(app,[new[]{job}]);
+            Assert.DoesNotContain(job,notified);
+            typeof(App).GetMethod("TrackSubmitted",flags)!.Invoke(app,[new[]{job},SubmissionOrigin.Home]);
+            Assert.Contains(job,notified);Assert.Contains(job,tracked);
+        }
+        finally {notified.Remove(job);tracked.Remove(job);}
+        return Task.CompletedTask;
     });
 
     [Fact]

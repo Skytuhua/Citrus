@@ -184,6 +184,17 @@ public sealed class AutoUpdateIntegrationTests
     }
 
     [Fact]
+    public async Task Uninstall_cleanup_requires_the_installer_gates_and_never_treats_other_startup_arguments_as_cleanup()
+    {
+        Assert.Null(await UpdateBackupCleanup.RunUninstallCleanupAsync(["--development"]));
+        Assert.Equal(23, await UpdateBackupCleanup.RunUninstallCleanupAsync(["--cleanup-update-backup-fixture=../outside"]));
+        string identity = Guid.NewGuid().ToString("N");
+        Assert.Equal(23, await UpdateBackupCleanup.RunUninstallCleanupAsync(["--cleanup-update-backup-fixture=" + identity]));
+        using var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
+        Assert.Null(hive.OpenSubKey(@"Software\Citrus-UpdateFixture-" + identity));
+    }
+
+    [Fact]
     public async Task Successful_boot_cleanup_deletes_only_hash_matched_owned_backup_files()
     {
         using var files = new NativeFiles();

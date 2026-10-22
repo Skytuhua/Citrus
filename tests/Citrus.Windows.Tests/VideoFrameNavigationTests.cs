@@ -61,7 +61,7 @@ public sealed class VideoFrameNavigationTests(DesktopFixture desktop)
                     for (int pixel = 0; pixel < 32 * 24; pixel++) file.Write([(byte)(frame * 5), 64, 128, 255]);
             await process.RunAsync(["-f", "rawvideo", "-pixel_format", "bgra", "-video_size", "32x24", "-framerate", "1", "-i", raw, "-c:v", "mpeg4", "-q:v", "2", input], null, default);
             var engine = new MediaEditorEngine(process, caps, new());
-            Window window = crop ? new VideoCropWindow(new(process, caps, new())) : new MediaEditorWindow(engine);
+            Window window = crop ? new VideoCropWindow(new(process, caps, new())){ConfirmDiscard=()=>true} : new MediaEditorWindow(engine){ConfirmDiscard=()=>true};
             var operation = crop ? VideoCropEngine.Operation : engine.Operations.Single(o => o.Id == "video.mute");
             Task? checking = null;
             window.Loaded += (_, _) => checking = Check();

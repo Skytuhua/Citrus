@@ -31,6 +31,7 @@ public partial class App : Application
     private JobToastWindow? toast;
     private string quietTitle = "Citrus", quietSource = "";
     private bool quietPreparing;
+    private int retiredQuietSucceeded, retiredQuietFailed;
     private readonly HashSet<ConversionJob> quietJobs = [];
     private SettingsWindow? settingsWindow;
     private ThemeManager? themes;
@@ -62,6 +63,7 @@ public partial class App : Application
     private Task glassPreparation = Task.CompletedTask;
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<ConversionJob> jobs = [];
+    internal const int CompletedJobHistoryLimit = 100;
     private readonly HashSet<ConversionJob> notified = [];
     private readonly JobProgressDispatcher jobUpdates;
     private bool preparing, updatingGestures;
@@ -84,6 +86,7 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (await TryCleanupUninstallBackupAsync(e.Args)) return;
         try
         {
             instance = new(options.InstanceSuffix);
@@ -372,10 +375,32 @@ public partial class App : Application
             foreach (var job in submitted) quietJobs.Add(job);
             quietPreparing = false;
         }
-        home?.AddJobs(submitted);
+        var retired = TrimJobHistory();
+        var retained = submitted.Where(job => !retired.Contains(job)).ToArray();
+        home?.AddJobs(retained);
         if (submitted.Count == 0) { home?.Report("Canceled."); if (origin == SubmissionOrigin.Wheel) toast?.Close(); }
         else if (origin == SubmissionOrigin.Wheel) RefreshQuietJobs();
         else ReportSubmission($"Submitted {submitted.Count} job(s).", origin, pending: true);
+        RefreshChangedJobs(retained);
+    }
+    private HashSet<ConversionJob> TrimJobHistory()
+    {
+        HashSet<ConversionJob> retired = [];
+        int completed = 0;
+        for (int i = jobs.Count - 1; i >= 0; i--)
+            if (jobs[i].State is not (ConversionJobState.Queued or ConversionJobState.Running) && ++completed > CompletedJobHistoryLimit)
+                retired.Add(jobs[i]);
+        if (retired.Count == 0) return retired;
+        foreach (var job in retired.Where(quietJobs.Contains))
+        {
+            if (job.State == ConversionJobState.Succeeded) retiredQuietSucceeded++;
+            else if (job.State == ConversionJobState.Failed) retiredQuietFailed++;
+        }
+        jobs.RemoveAll(retired.Contains);
+        notified.ExceptWith(retired);
+        quietJobs.ExceptWith(retired);
+        home?.RemoveJobs(retired);
+        return retired;
     }
     private static void PlaceEditor(Window editor, Window? owner)
     {
@@ -408,6 +433,7 @@ public partial class App : Application
         quietTitle = ProgressTitle(drop.Operation);
         quietSource = drop.Paths.Count == 1 ? Path.GetFileName(drop.Paths[0]) : $"{drop.Paths.Count} files";
         quietJobs.RemoveWhere(job => job.State is not (ConversionJobState.Queued or ConversionJobState.Running));
+        retiredQuietSucceeded = retiredQuietFailed = 0;
         // Only a new accepted submission may acquire presentation. Dismissal or pause
         // during inspection/confirmation remains effective for its later status and jobs.
         if (toast is not null || IsQuitting) return;
@@ -426,8 +452,8 @@ public partial class App : Application
         // Earlier jobs cannot replace or expire the card belonging to a new options/editor flow.
         if (toast is null || quietPreparing) return; // Dismissal stays dismissed during later progress updates.
         int pending = quietJobs.Count(job => job.State is ConversionJobState.Running or ConversionJobState.Queued);
-        int failed = quietJobs.Count(job => job.State == ConversionJobState.Failed);
-        int complete = quietJobs.Count(job => job.State == ConversionJobState.Succeeded);
+        int failed = retiredQuietFailed + quietJobs.Count(job => job.State == ConversionJobState.Failed);
+        int complete = retiredQuietSucceeded + quietJobs.Count(job => job.State == ConversionJobState.Succeeded);
         if (pending == 0 && failed == 0 && complete == 0) { toast.Close(); return; }
         string message = pending > 0 ? $"{pending} job(s) in progress · {complete} ready · {failed} failed"
             : failed > 0 ? $"{complete} ready · {failed} failed" : $"{complete} complete";
@@ -456,8 +482,12 @@ public partial class App : Application
     private void RefreshChangedJobs(IReadOnlyCollection<ConversionJob> changedJobs)
     {
         if (IsQuitting) return;
+        bool refreshQuiet = changedJobs.Any(quietJobs.Contains);
+        TrimJobHistory();
+        var retained = jobs.ToHashSet();
+        changedJobs = changedJobs.Where(retained.Contains).ToArray();
         home?.RefreshJobs(changedJobs);
-        if (changedJobs.Any(quietJobs.Contains)) RefreshQuietJobs();
+        if (refreshQuiet) RefreshQuietJobs();
         foreach (var job in changedJobs)
         {
             if (job.State is ConversionJobState.Succeeded or ConversionJobState.Failed && notified.Add(job))

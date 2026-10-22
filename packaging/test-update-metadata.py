@@ -46,8 +46,8 @@ class UpdateMetadataTests(unittest.TestCase):
         text=package.verification_instructions({'one.txt':'a'*64,'folder/two.txt':'b'*64})
         self.assertIn('Push "$INSTDIR\\one.txt"',text)
         self.assertIn('Push "$INSTDIR\\folder\\two.txt"',text)
-        self.assertEqual(text.count('Call HashFile'),2)
-        self.assertEqual(text.count('Call Fail'),2)
+        self.assertEqual(text.count('Call ${PREFIX}HashFile'),2)
+        self.assertEqual(text.count('Call ${PREFIX}Fail'),2)
         with self.assertRaises(ValueError):package.verification_instructions({'../escape':'a'*64})
 
 if __name__=='__main__':unittest.main()

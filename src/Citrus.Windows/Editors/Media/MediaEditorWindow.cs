@@ -60,17 +60,19 @@ public sealed class MediaEditorWindow : Window
     private Slider? fullTimeline;
     private TextBlock? auditionReadout;
     private int selected;
-    private bool closed,shown,hydratingControls,invalidVideoSize,applying;
+    private bool closed,shown,hydratingControls,invalidVideoSize,applying,dirty;
     private CancellationTokenSource? previewWork;
     private long viewGeneration;
     private long sourceGeneration;
     private Task loading=Task.CompletedTask;
     public EditorDocument? CurrentDocument=>documents.Count==0?null:document;
     public bool IsReady {get;private set;}
+    internal Func<bool> ConfirmDiscard {get;set;}
     private string Id=>request.Operation.Id;
     public MediaEditorWindow(MediaEditorEngine engine)
     {
         this.engine=engine;
+        ConfirmDiscard=()=>MessageBox.Show(this,"Discard media edits?","Keep editing?",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes;
         NameScope.SetNameScope(this,new NameScope());
         Width=640;Height=540;MinWidth=440;MinHeight=400;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         SetResourceReference(FontFamilyProperty,"AppFont");SetResourceReference(FontSizeProperty,"BodySize");SetResourceReference(ForegroundProperty,"PrimaryText");SetResourceReference(BackgroundProperty,"PanelBackground");
@@ -90,6 +92,7 @@ public sealed class MediaEditorWindow : Window
         RegisterName("ApplyButton",apply);RegisterName("StatusText",status);
         previewDelay.Tick+=(_,_)=>{previewDelay.Stop();Run(RefreshPreviewAsync);};
         PreviewKeyDown+=KeyPressed;
+        Closing+=(_,e)=>{if(dirty&&accepted is null&&!lifetime.IsCancellationRequested&&(Application.Current as App)?.IsQuitting!=true)e.Cancel=!ConfirmDiscard();};
         Closed+=(_,_)=>{closed=true;previewDelay.Stop();lifetime.Cancel();previewWork?.Cancel();playback?.Stop();};
     }
     public async Task<EditorSubmissionBatch?> ShowEditorAsync(EditorOpenRequest value,CancellationToken ct)
@@ -98,7 +101,7 @@ public sealed class MediaEditorWindow : Window
         if(!value.Operation.Id.StartsWith("video.",StringComparison.Ordinal)){Width=540;Height=600;}
         Title=heading.Text=ToolTitle(value.Operation.Id,value.Operation.Label);apply.Content=ActionLabel(value.Operation.Id);
         Loaded+=Load;
-        using var cancellation=ct.Register(()=>Dispatcher.BeginInvoke(new Action(()=>{if(!closed)Close();})));
+        using var cancellation=ct.Register(()=>Dispatcher.BeginInvoke(new Action(()=>{if(!closed){lifetime.Cancel();Close();}})));
         try {ct.ThrowIfCancellationRequested();ShowDialog();return accepted;}
         finally
         {
@@ -660,6 +663,7 @@ public sealed class MediaEditorWindow : Window
     private void SetDocument(EditorDocument value,string key)
     {
         if(hydratingControls)return;
+        if(IsReady)dirty=true;
         histories[selected].Commit(value,key);document=histories[selected].Current;documents[selected]=document;playback?.Stop();UpdateAdmission();
         if(fullTimeline is not null)
         {
@@ -718,7 +722,7 @@ public sealed class MediaEditorWindow : Window
         row.Children.Add(Label(label));var slider=new Slider{Minimum=min,Maximum=max,Value=initial,VerticalAlignment=VerticalAlignment.Center,Margin=new(8,0,12,0)};Grid.SetColumn(slider,1);row.Children.Add(slider);var readout=Label(initial.ToString("0.##",CultureInfo.InvariantCulture)+" "+unit);readout.TextAlignment=TextAlignment.Right;Grid.SetColumn(readout,2);row.Children.Add(readout);slider.ValueChanged+=(_,_)=>{readout.Text=slider.Value.ToString("0.##",CultureInfo.InvariantCulture)+" "+unit;if(!hydratingControls)update(slider.Value);};body.Children.Add(row);return slider;
     }
     private static TextBlock Label(string text)=>new(){Text=text,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,8,8)};
-    private static TextBox Field(string text,string accessible){var result=new TextBox{Text=text,MinHeight=32,Padding=new(8,4,8,4),Margin=new(0,0,8,8)};System.Windows.Automation.AutomationProperties.SetName(result,accessible);return result;}
+    private TextBox Field(string text,string accessible){var result=new TextBox{Text=text,MinHeight=32,Padding=new(8,4,8,4),Margin=new(0,0,8,8)};System.Windows.Automation.AutomationProperties.SetName(result,accessible);result.TextChanged+=(_,_)=>{if(IsReady&&!hydratingControls&&!ReferenceEquals(result,search))dirty=true;};return result;}
     private static Button Button(string text,Action action){var result=new Button{Content=text,MinHeight=30,Padding=new(12,5,12,5),Margin=new(0,0,8,8),HorizontalAlignment=HorizontalAlignment.Left};result.SetResourceReference(Control.StyleProperty,text=="−"?"TertiaryButton":"SecondaryButton");result.Click+=(_,_)=>action();return result;}
     private static string ToolTitle(string id,string fallback)=>id switch {"audio.trim"=>"Trim Audio","audio.channels"=>"Convert Audio Channels","audio.bleep"=>"Bleep Audio","audio.normalize"=>"Normalize Audio","audio.visualizer"=>"Audio Visualization","video.trim"=>"Trim Video","video.mute"=>"Mute Video","video.speed"=>"Video Speed","video.split"=>"Split Video","video.redact"=>"Redact Video","video.resize"=>"Resize Video",_=>fallback};
     public static string ActionLabel(string id)=>id switch {"audio.bleep"=>"Save Bleeped Copy","audio.compress" or "video.compress"=>"Compress","audio.metadata" or "video.metadata"=>"Save","video.snapshot"=>"Save Snapshot","video.split"=>"Split","audio.visualizer"=>"Save Visualization",_=>"Apply"};

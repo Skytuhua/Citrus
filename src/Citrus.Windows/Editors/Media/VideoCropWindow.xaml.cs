@@ -31,7 +31,7 @@ public partial class VideoCropWindow : Window
     private WriteableBitmap? presentation;
     private TimeRange audition;
     private EditorSubmissionBatch? accepted;
-    private bool closed, shown, syncing, scrubbing, resumeAfterScrub, playIntent, continuing, seekPreparing, invalidPercent, silentPreview;
+    private bool closed, shown, syncing, scrubbing, resumeAfterScrub, playIntent, continuing, seekPreparing, invalidPercent, silentPreview, dirty;
     private double? ratio;
     private RationalTime? displayedTime;
     private object? sliderOwner;
@@ -40,13 +40,16 @@ public partial class VideoCropWindow : Window
     private static readonly Geometry PlayShape = FrozenShape("M1,0 L9,5 1,10 Z");
     private static readonly Geometry PauseShape = FrozenShape("M1,0 L3,0 3,10 1,10 Z M7,0 L9,0 9,10 7,10 Z");
     internal MediaPreviewController? Playback => playback;
+    internal Func<bool> ConfirmDiscard { get; set; }
     private SizeI Plane => media!.Video[0].DisplaySize;
     private RationalTime PreviewEnd => media!.Video[0].PresentationEnd ?? media.Duration;
     private RectD Crop => ((VideoRecipe)document!.Recipe).Crop!.Value;
     public VideoCropWindow(VideoCropEngine engine)
     {
         this.engine = engine;
+        ConfirmDiscard = () => MessageBox.Show(this,"Discard crop edits?","Keep editing?",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes;
         InitializeComponent(); WindowChromeSetup.Apply(this);
+        WidthPercent.TextChanged += FieldChanged; HeightPercent.TextChanged += FieldChanged;
         SizeChanged += (_, _) => PreviewPane.Height = Math.Clamp((ActualHeight > 0 ? ActualHeight : Height) * .49, 184, 270);
         CropHandles.Changed += CropChanged;
         foreach (var slider in new[] { WidthSlider, HeightSlider })
@@ -61,6 +64,7 @@ public partial class VideoCropWindow : Window
         seekTimer = new() { Interval = TimeSpan.FromMilliseconds(120) };
         seekTimer.Tick += async (_, _) => { seekTimer.Stop(); await Track(SeekTo(Timeline.Value, false)); };
         PreviewKeyDown += WindowKeyDown;
+        Closing += (_,e) => { if(dirty&&accepted is null&&!lifetime.IsCancellationRequested&&(Application.Current as App)?.IsQuitting!=true)e.Cancel=!ConfirmDiscard(); };
         Closed += (_, _) => { closed = true; playIntent = false; renderTimer.Stop(); seekTimer.Stop(); lifetime.Cancel(); seekWork?.Cancel(); playback?.Stop(); };
         (Application.Current as App)?.AttachPresentation(this, Chrome);
     }
@@ -70,7 +74,7 @@ public partial class VideoCropWindow : Window
         if (value.Operation != VideoCropEngine.Operation || value.InitialPaths.Length != 1) throw new ArgumentException("Select one video to crop.");
         shown = true; request = value;
         Loaded += BeginLoading;
-        using var registration = ct.Register(() => Dispatcher.BeginInvoke(new Action(() => { if (!closed) Close(); })));
+        using var registration = ct.Register(() => Dispatcher.BeginInvoke(new Action(() => { if (!closed) { lifetime.Cancel(); Close(); } })));
         try { ct.ThrowIfCancellationRequested(); ShowDialog(); return accepted; }
         finally
         {
@@ -120,6 +124,7 @@ public partial class VideoCropWindow : Window
     {
         if (document is null) return;
         var crop = VideoCropGeometry.Normalize(rect, Plane);
+        if(crop!=Crop)dirty=true;
         document = document with { Recipe = ((VideoRecipe)document.Recipe) with { Crop = crop, Canvas = new((int)crop.Width, (int)crop.Height) } };
         if (commit && history is not null && ((VideoRecipe)history.Current.Recipe).Crop != crop)
         { history.Commit(document, key is "width" or "height" && sliderOwner is not null && sliderGesture is not null ? key + sliderGesture : key + Guid.NewGuid().ToString("N")); document = history.Current; }
@@ -159,6 +164,7 @@ public partial class VideoCropWindow : Window
         SetCrop(VideoCropGeometry.Fit(Plane, null), true, "reset");
     }
     private void PercentKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { CommitPercent((TextBox)sender); e.Handled = true; } }
+    private void FieldChanged(object sender, TextChangedEventArgs e) { if(!syncing&&document is not null)dirty=true; }
     private void PercentCommitted(object sender, RoutedEventArgs e) { if (!syncing) CommitPercent((TextBox)sender); }
     private bool CommitPercent(TextBox box)
     {
@@ -268,9 +274,9 @@ public partial class VideoCropWindow : Window
     { if (IsSeekKey(e.Key)) { keyboardSeeking = false; await Track(SeekTo(Timeline.Value, false)); } }
     private void WindowKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape) { if(CropHandles.IsDragging)CropHandles.CancelDrag();else Close(); e.Handled = true; return; }
         if (e.OriginalSource is TextBox || document is null) return;
-        if (e.Key == Key.Escape) { Close(); e.Handled = true; }
-        else if (e.Key == Key.Space && e.OriginalSource is not Button) { PlayPause(this, e); e.Handled = true; }
+        if (e.Key == Key.Space && e.OriginalSource is not Button) { PlayPause(this, e); e.Handled = true; }
         else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key is Key.Z or Key.Y && history is not null)
         {
             if (e.Key == Key.Z ? history.Undo() : history.Redo())

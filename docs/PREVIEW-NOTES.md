@@ -1,6 +1,8 @@
 # 0.3 preview notes
 
-Citrus 0.3.0-preview.5 uses stronger installer compression and retains the menus, wheel and fixes from preview.4. The complete package bundles every offline engine. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
+Citrus 0.3.0-preview.6 fixes the six repository audit findings and an intermittent installer crash when reading the Windows user identity. Setup reports installed-file verification progress and reuses its hashing provider to shorten the final verification step. The complete package retains preview.5's LZMA compression and every offline engine. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
+
+PDF image export now enforces the 32-megapixel limit; plain-text export skips unnecessary artwork recovery while retaining scan OCR. Media and crop editors confirm before discarding edits. Recent history retains 100 completed jobs plus every active job, with virtualized rows. Publishing refuses linked output ancestors. Uninstall also cleans a committed update's previous owned files before removing registration, preserving changed and unknown backup files.
 
 ## Current boundaries
 
@@ -16,7 +18,9 @@ Citrus 0.3.0-preview.5 uses stronger installer compression and retains the menus
 
 ## Verification and performance
 
-The runtime and UI records below are from preview.4. Preview.5 changes installer compression; its packaging checks are recorded with the release.
+Preview.6's targeted checks passed 60 PDF tests, 36 desktop regression tests and a final 14-test history/progress/navigation batch. These overlap and must not be summed. A guard-page regression reproduced the old installer identity crash and passed with the bounded copy. Full-inventory probes checked the same 21,560 files before and after the hashing change; elapsed time on this machine fell from 451 to 116 seconds. These are local measurements, not a clean-PC performance guarantee.
+
+The broader affected desktop batch passed 100 cases and failed three: two existing foreground-activation fixture failures and one navigation timeout that passed its isolated recheck. The runtime and UI records below are from preview.4; they remain historical evidence.
 
 Local verification recorded **271 core passes**, **609 conversion passes with four capability skips**, **77 editor regression passes**, and **126 focused wheel passes with three opt-in native cancellation skips**. Batches overlap and must not be summed. Isolated installer transitions passed nine update cases and two recovery cases. Source-hash, cancellation and collision-safe publication checks remain enabled.
 

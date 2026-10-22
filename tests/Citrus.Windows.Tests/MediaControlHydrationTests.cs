@@ -38,7 +38,7 @@ public sealed class MediaControlHydrationTests(DesktopFixture desktop)
                 first=Path.Combine(root,"first.mp4");second=Path.Combine(root,"second.mp4");
                 await process.RunAsync(["-stream_loop","11","-f","rawvideo","-pixel_format","bgra","-video_size","32x24","-framerate","12","-i",raw,"-c:v","mpeg4",first],null,default);File.Copy(first,second);
             }
-            var operation=engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(engine);Task? check=null;
+            var operation=engine.Operations.Single(o=>o.Id==id);var window=new MediaEditorWindow(engine){ConfirmDiscard=()=>true};Task? check=null;
             window.Loaded+=(_,_)=>check=Check();
             await window.ShowEditorAsync(new(operation,[first,second],operation.Label,new(),root,SubmissionOrigin.Home),default);await check!;
             async Task Check()
