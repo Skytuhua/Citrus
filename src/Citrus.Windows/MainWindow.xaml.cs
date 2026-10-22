@@ -18,6 +18,7 @@ public partial class MainWindow : Window, IDisposable
     private bool disposed;
     private WheelDemoWindow? demo;
     private readonly ObservableCollection<JobViewModel> jobs = [];
+    private readonly Dictionary<ConversionJob, JobViewModel> jobModels = [];
     private readonly ObservableCollection<SubmissionFailure> failures = [];
     private bool busy;
     public MainWindow(App app, IFilePreviewService? previews = null, bool startInLauncher = false)
@@ -47,7 +48,8 @@ public partial class MainWindow : Window, IDisposable
     {
         if (IsLauncher) return;
         WorkspaceRoot.Visibility = Visibility.Collapsed; LauncherRoot.Visibility = Visibility.Visible;
-        WindowState = WindowState.Normal; MinWidth = 340; MinHeight = 360; Width = 400; Height = 500;
+        double textScale = TryFindResource("TextScaleFactor") is double scale ? scale : 1;
+        WindowState = WindowState.Normal; MinWidth = 340; MinHeight = 360 * textScale; Width = 400; Height = 500 * textScale;
         if (IsLoaded) PlaceInitialWorkspace(this, EventArgs.Empty);
     }
     internal void ShowWorkspace()
@@ -89,22 +91,21 @@ public partial class MainWindow : Window, IDisposable
     private void OnClosing(object? sender, CancelEventArgs e) { if (!app.IsQuitting && !disposed) { e.Cancel = true; demo?.Close(); Hide(); } }
     private void ChooseFiles(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFileDialog { Title = "Choose local files", CheckFileExists = true, Multiselect = true, Filter = "All files|*.*" };
+        var picker = new OpenFileDialog { Title = "Choose files", CheckFileExists = true, Multiselect = true, Filter = "All files|*.*" };
         if (picker.ShowDialog(this) == true) AddFiles(picker.FileNames);
     }
     private void ChooseFolder(object sender, RoutedEventArgs e)
     {
-        var picker = new OpenFolderDialog { Title = "Choose physical folders for Actions", Multiselect = true };
+        var picker = new OpenFolderDialog { Title = "Choose folders", Multiselect = true };
         if (picker.ShowDialog(this) == true) AddFiles(picker.FolderNames);
     }
     internal void AddFiles(IReadOnlyList<string> paths)
     {
-        if (!DropValidation.Accepts(paths, OperationMode.Actions)) { Report("Choose existing physical files or folders. Unavailable cloud placeholders cannot be used."); return; }
+        if (!DropValidation.Accepts(paths, OperationMode.Actions)) { Report("Choose downloaded files or folders."); return; }
         if (IsLauncher) ShowWorkspace();
         selection.Add(paths);
         SelectedFiles.SelectedItem = selection.Active;
         if (paths.Any(Directory.Exists)) Modes.SelectedIndex = 2;
-        RefreshOperations();
     }
     private void FilesDragOver(object sender, DragEventArgs e)
     {
@@ -149,13 +150,13 @@ public partial class MainWindow : Window, IDisposable
             if (disposed || token.IsCancellationRequested || generation != previewGeneration) return;
             PreviewImage.Source = image;
             PreviewFallback.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
-            PreviewMessage.Text = "Preview unavailable\n" + (Path.GetExtension(active.Path) is { Length: > 0 } extension ? extension.TrimStart('.').ToUpperInvariant() + " file" : "File or folder") + " · use a compatible operation below";
+            PreviewMessage.Text = "Preview unavailable";
             PreviewCaption.ToolTip = active.Path;
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is IOException or NotSupportedException or UnauthorizedAccessException)
         {
-            if (!disposed && generation == previewGeneration) PreviewMessage.Text = "Preview unavailable. Your file can still be included.";
+            if (!disposed && generation == previewGeneration) PreviewMessage.Text = "Preview unavailable";
         }
     }
     private void RemoveFiles(object sender, RoutedEventArgs e)
@@ -172,17 +173,18 @@ public partial class MainWindow : Window, IDisposable
     {
         if (RunButton is null) return;
         var operation = (Operations.SelectedItem as OperationCard)?.Operation;
+        int includedCount = selection.IncludedPaths.Count;
         RunButton.IsEnabled = !busy && operation is not null;
-        RunButton.Content = operation is null ? "Choose an operation" : operation.Mode == OperationMode.Actions ? operation.Label : operation.IsGroup ? "Review group…" : operation.NeedsOptions ? "Set options…" : selection.IncludedPaths.Count == 1 ? "Create copy" : $"Create {selection.IncludedPaths.Count} copies";
+        RunButton.Content = operation is null ? "Choose an operation" : operation.Mode == OperationMode.Actions ? operation.Label : operation.IsGroup ? "Review group…" : operation.NeedsOptions ? "Set options…" : includedCount == 1 ? "Create copy" : $"Create {includedCount} copies";
         InspectorTitle.Text = operation?.Label ?? "Choose files and an operation";
-        OperationHint.Text = operation is null ? "Only compatible operations for every included file appear here." : OperationCard.Describe(operation);
-        BatchSummary.Text = $"{selection.IncludedPaths.Count} included file(s)";
+        OperationHint.Text = operation is null ? "" : OperationCard.Describe(operation);
+        BatchSummary.Text = $"{includedCount} included file(s)";
         OutputSummary.Text = operation?.Id == "action.move" ? "Moves originals · choose a destination next"
-            : operation?.Mode == OperationMode.Actions ? $"{selection.IncludedPaths.Count} included file(s)"
-            : operation?.IsGroup == true ? "One grouped output · review order and destination next"
+            : operation?.Mode == OperationMode.Actions ? $"{includedCount} included file(s)"
+            : operation?.IsGroup == true ? "One combined output"
             : $"{operation?.OutputExtension?.TrimStart('.').ToUpperInvariant() ?? "New"} copies · beside each original";
         SafetySummary.Text = operation?.Id == "action.move" ? "Moves originals to a folder you choose. Existing items are never replaced."
-            : operation?.Mode == OperationMode.Actions ? "Review the action above before continuing." : "Originals stay untouched. Existing files are never replaced.";
+            : "";
     }
     private void RefreshOperations()
     {
@@ -197,9 +199,9 @@ public partial class MainWindow : Window, IDisposable
         bool hasFiles = selection.Items.Count > 0;
         EmptyState.Visibility = hasFiles ? Visibility.Collapsed : Visibility.Visible;
         FilesPanel.Visibility = CenterPanel.Visibility = Inspector.Visibility = hasFiles ? Visibility.Visible : Visibility.Collapsed;
-        OperationsEmpty.Text = catalog is null ? "Discovering installed engines…" : selection.Items.Count == 0 ? "Add files to discover what you can create."
-            : paths.Count == 0 ? "Check at least one file to see compatible operations."
-            : available.Count == 0 ? "No compatible operations for all included files. Exclude an input or switch mode." : "";
+        OperationsEmpty.Text = catalog is null ? "Loading tools…" : selection.Items.Count == 0 ? "Add files to begin."
+            : paths.Count == 0 ? "Include at least one file."
+            : available.Count == 0 ? "No compatible operations. Exclude a file or switch mode." : "";
         UpdateInspector();
     }
 
@@ -208,14 +210,31 @@ public partial class MainWindow : Window, IDisposable
         if (Operations.SelectedItem is OperationCard card) await app.SubmitAsync(new(card.Operation, selection.IncludedPaths), origin: SubmissionOrigin.Home);
     }
     public void SetBusy(bool value) { busy = value; RunButton.IsEnabled = !busy && Operations.SelectedItem is OperationCard; }
-    public void AddJobs(IReadOnlyList<ConversionJob> submitted) { foreach (var job in submitted) jobs.Insert(0, new(job)); RefreshJobs(); if (IsVisible && submitted.Count > 0) JobsPanel.IsExpanded = true; }
-    public void RefreshJobs()
+    public void AddJobs(IReadOnlyList<ConversionJob> submitted)
+    {
+        foreach (var job in submitted) { var model = new JobViewModel(job); jobModels[job] = model; jobs.Insert(0, model); }
+        RefreshJobs();
+        if (IsVisible && submitted.Count > 0) JobsPanel.IsExpanded = true;
+    }
+    public void RefreshJobs(IReadOnlyCollection<ConversionJob>? changedJobs = null)
     {
         JobsPanel.Visibility = jobs.Count + failures.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var job in jobs) job.Refresh();
+        if (changedJobs is null) { foreach (var job in jobs) job.Refresh(); }
+        else { foreach (var job in changedJobs) if (jobModels.TryGetValue(job, out var model)) model.Refresh(); }
         LauncherRecent.Visibility = JobsPanel.Visibility;
         LauncherJobSummary.Text = jobs.FirstOrDefault() is { } recent ? recent.Source + " · " + recent.Status : failures.FirstOrDefault()?.Message ?? "";
-        JobSummary.Text = $"Jobs · {jobs.Count(j => j.Job.State == ConversionJobState.Succeeded)} succeeded · {jobs.Count(j => j.Job.State == ConversionJobState.Failed) + failures.Count} failed · {jobs.Count(j => j.Job.State == ConversionJobState.Canceled)} canceled · {jobs.Count(j => j.CanCancel)} pending";
+        int succeeded = 0, failed = failures.Count, canceled = 0, pending = 0;
+        foreach (var model in jobs)
+        {
+            switch (model.Job.State)
+            {
+                case ConversionJobState.Succeeded: succeeded++; break;
+                case ConversionJobState.Failed: failed++; break;
+                case ConversionJobState.Canceled: canceled++; break;
+                default: pending++; break;
+            }
+        }
+        JobSummary.Text = $"Jobs · {succeeded} succeeded · {failed} failed · {canceled} canceled · {pending} pending";
     }
     private void CancelJob(object sender, RoutedEventArgs e) { if (((Button)sender).Tag is JobViewModel model) model.Job.Cancel(); }
     private async void RetryJob(object sender, RoutedEventArgs e)
@@ -283,6 +302,12 @@ public partial class MainWindow : Window, IDisposable
     internal void ApplyTextScale(double scale)
     {
         if (OperationColumn is null) return;
+        bool stackedLauncher = scale > 1.25;
+        Grid.SetRow(LauncherSettingsButton, stackedLauncher ? 1 : 0);
+        Grid.SetColumn(LauncherSettingsButton, stackedLauncher ? 0 : 1);
+        Grid.SetColumnSpan(LauncherWorkspaceButton, stackedLauncher ? 2 : 1);
+        Grid.SetColumnSpan(LauncherSettingsButton, stackedLauncher ? 2 : 1);
+        LauncherWorkspaceButton.HorizontalAlignment = stackedLauncher ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
         bool large = scale > 1.25 || Width < 780;
         OperationColumn.Width = large ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetColumn(CenterPanel, large ? 0 : 1); Grid.SetRow(CenterPanel, large ? 1 : 0);

@@ -30,8 +30,8 @@ public sealed class AnnotationInspector : StackPanel
     public AnnotationInspector(EditorHostViewModel model,AnnotationOverlay overlay,ImageEditorServices services,InstalledFontCatalog fontCatalog,Window owner,bool masks,Action refresh,Action rebuild,Action<string> error,CancellationToken lifetime)
     {
         this.model=model;this.overlay=overlay;this.services=services;this.owner=owner;this.fontCatalog=fontCatalog;this.refresh=refresh;this.rebuild=rebuild;this.error=error;this.lifetime=lifetime;
-        Title(masks?"Manual masks":"Make your point");
-        Note(masks?"Draw over an area to cover it. Automatic detection is not enabled.":"Choose a tool, then drag on the image. Click to place text; its handles appear after exact layout is ready.");
+        Title(masks?"Manual masks":"Annotations");
+        Note(masks?"Draw the area to cover.":"Drag to draw; click to place text.");
         var tools=masks?new[]{ImageLayerTool.Select,ImageLayerTool.Solid,ImageLayerTool.Gaussian,ImageLayerTool.Pixelate}:new[]{ImageLayerTool.Select,ImageLayerTool.Arrow,ImageLayerTool.Pen,ImageLayerTool.Rectangle,ImageLayerTool.Ellipse,ImageLayerTool.Highlight,ImageLayerTool.Text,ImageLayerTool.Number,ImageLayerTool.Inset,ImageLayerTool.Magnifier};
         var toolbar=new WrapPanel{Margin=new(0,8,0,12)};
         foreach(var tool in tools)
@@ -49,7 +49,7 @@ public sealed class AnnotationInspector : StackPanel
             if(a is not null)Inspect(a);else if(mask is not null){maskInspector=new MaskInspector(mask,overlay,refresh,error,rebuild);Children.Add(maskInspector);}
         }
         LayerList();
-        Note("Arrow keys move 1 output pixel · Shift moves 10. Delete removes a layer. Ctrl+Z / Ctrl+Y undo and redo. Ctrl+wheel zooms; middle-drag pans.");
+        Note("Arrow keys: move · Shift: move faster · Ctrl+wheel: zoom · Middle-drag: pan.");
     }
     private static string Label(ImageLayerTool tool)=>tool switch{ImageLayerTool.Select=>"↖ Select",ImageLayerTool.Arrow=>"↗ Arrow",ImageLayerTool.Pen=>"∿ Pen",ImageLayerTool.Rectangle=>"□ Box",ImageLayerTool.Ellipse=>"○ Ellipse",ImageLayerTool.Highlight=>"▰ Highlight",ImageLayerTool.Text=>"T Text",ImageLayerTool.Number=>"① Number",ImageLayerTool.Inset=>"▧ Inset",ImageLayerTool.Magnifier=>"⌕ Magnify",ImageLayerTool.Solid=>"Solid",ImageLayerTool.Gaussian=>"Blur",_=>"Pixelate"};
     private void Title(string text)=>Children.Add(new TextBlock{Text=text,FontWeight=FontWeights.SemiBold,Margin=new(0,5,0,7),TextWrapping=TextWrapping.Wrap});
@@ -83,16 +83,16 @@ public sealed class AnnotationInspector : StackPanel
     {
         Title("Selected "+LayerName(layer));
         bool textLayer=layer.Geometry is TextGeometry;
-        if(textLayer)Note("Text size stays proportional, including rotated text. Width and height are linked. Use Local wrap width to reflow lines.");
-        var preparing=new TextBlock{Text="Preparing exact text layout…",TextWrapping=TextWrapping.Wrap,Margin=new(0,4,0,8)};
+        if(textLayer)Note("Width and height stay linked. Change wrap width to reflow text.");
+        var preparing=new TextBlock{Text="Preparing text…",TextWrapping=TextWrapping.Wrap,Margin=new(0,4,0,8)};
         if(textLayer)Children.Add(preparing);
         var initial=overlay.SelectedBounds();
         foreach(string name in new[]{"X","Y","Width","Height"})
         {
             double Read(RectD b)=>name switch{"X"=>b.X,"Y"=>b.Y,"Width"=>b.Width,_=>b.Height};
-            var box=Field(name+" · output pixels",initial is {} value?N(Read(value)):"",s=>
+            var box=Field(name+" · px",initial is {} value?N(Read(value)):"",s=>
             {
-                var bounds=overlay.SelectedBounds()??throw new ArgumentException("Preparing exact text layout. Resize when its handles appear.");
+                var bounds=overlay.SelectedBounds()??throw new ArgumentException("Wait for text handles before resizing.");
                 double v=Number(s,name is "Width" or "Height"?1:-16384,16384);
                 bounds=name switch{"X"=>bounds with {X=v},"Y"=>bounds with {Y=v},"Width"=>bounds with {Width=v},_=>bounds with {Height=v}};
                 overlay.SetBounds(bounds);refresh();
@@ -108,20 +108,20 @@ public sealed class AnnotationInspector : StackPanel
         SyncGeometry();
         if(layer.Geometry is TextGeometry text)
         {
-            var wrap=Field("Local wrap width · output pixels",N(text.WrapWidth),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Geometry=((TextGeometry)a.Geometry) with {WrapWidth=Number(s,1,16384)}});refresh();});
+            var wrap=Field("Wrap width · px",N(text.WrapWidth),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Geometry=((TextGeometry)a.Geometry) with {WrapWidth=Number(s,1,16384)}});refresh();});
             TrackValue(wrap,()=>Recipe.Annotations.FirstOrDefault(a=>a.Id==layer.Id)?.Geometry is TextGeometry current?N(current.WrapWidth):N(text.WrapWidth));
             Field("Text",text.Text,value=>{var a=Current();ValidateText(a,value);overlay.ReplaceAnnotation(a with {Geometry=((TextGeometry)a.Geometry) with {Text=value}});refresh();},true);
             Field("Rotation · degrees",N(text.Rotation),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Geometry=((TextGeometry)a.Geometry) with {Rotation=Number(s,-360,360)}});refresh();});
             AddButton("Apply text",()=>{FlushFields();refresh();});
         }
-        if(layer.Geometry is NumberGeometry number)Field("Stable callout number",number.Number.ToString(CultureInfo.InvariantCulture),s=>{if(!int.TryParse(s,out int n)||n<=0)throw new ArgumentException("Callout number must be a positive whole number.");var a=Current();ValidateText(a,s);overlay.ReplaceAnnotation(a with {Geometry=((NumberGeometry)a.Geometry) with {Number=n}});refresh();});
+        if(layer.Geometry is NumberGeometry number)Field("Callout number",number.Number.ToString(CultureInfo.InvariantCulture),s=>{if(!int.TryParse(s,out int n)||n<=0)throw new ArgumentException("Callout number must be a positive whole number.");var a=Current();ValidateText(a,s);overlay.ReplaceAnnotation(a with {Geometry=((NumberGeometry)a.Geometry) with {Number=n}});refresh();});
         if(layer.Geometry is MagnifierGeometry magnifier)
         {
             Field("Magnification",N(magnifier.Scale),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Geometry=((MagnifierGeometry)a.Geometry) with {Scale=Number(s,1,100)}});refresh();});
             foreach(var (name,value) in new[]{("Sample X",magnifier.SampleBounds.X),("Sample Y",magnifier.SampleBounds.Y),("Sample width",magnifier.SampleBounds.Width),("Sample height",magnifier.SampleBounds.Height)})
-                Field(name+" · output pixels",N(value),s=>{var a=Current();var g=(MagnifierGeometry)a.Geometry;double v=Number(s,name is "Sample width" or "Sample height"?1:0,16384);var b=g.SampleBounds;b=name switch{"Sample X"=>b with {X=v},"Sample Y"=>b with {Y=v},"Sample width"=>b with {Width=v},_=>b with {Height=v}};overlay.ReplaceAnnotation(a with {Geometry=g with {SampleBounds=b}});refresh();});
+                Field(name+" · px",N(value),s=>{var a=Current();var g=(MagnifierGeometry)a.Geometry;double v=Number(s,name is "Sample width" or "Sample height"?1:0,16384);var b=g.SampleBounds;b=name switch{"Sample X"=>b with {X=v},"Sample Y"=>b with {Y=v},"Sample width"=>b with {Width=v},_=>b with {Height=v}};overlay.ReplaceAnnotation(a with {Geometry=g with {SampleBounds=b}});refresh();});
         }
-        Field("Stroke width · output pixels",N(layer.Style.StrokeWidth),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Style=a.Style with {StrokeWidth=Number(s,0,16384)}});refresh();});
+        Field("Stroke width · px",N(layer.Style.StrokeWidth),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Style=a.Style with {StrokeWidth=Number(s,0,16384)}});refresh();});
         Field("Opacity · 0–100%",N(layer.Style.Opacity*100),s=>{var a=Current();overlay.ReplaceAnnotation(a with {Style=a.Style with {Opacity=Number(s,0,100)/100}});refresh();});
         ColorChoices("Stroke / text color",layer.Style.Stroke,c=>{var a=Current();overlay.ReplaceAnnotation(a with {Style=a.Style with {Stroke=c,Fill=a.Geometry is TextGeometry?c:a.Style.Fill}});refresh();});
         if(layer.Geometry is ShapeGeometry or NumberGeometry)ColorChoices("Fill",layer.Style.Fill,c=>{var a=Current();overlay.ReplaceAnnotation(a with {Style=a.Style with {Fill=c}});refresh();},true);
@@ -131,7 +131,7 @@ public sealed class AnnotationInspector : StackPanel
     private void ValidateText(Annotation a,string text)
     {
         if(string.IsNullOrEmpty(text)||text.Length>100000)throw new ArgumentException("Text must contain 1–100000 characters.");
-        if(!Document.Fonts.Any(f=>f.Id==a.Style.Font!.ArtifactId))throw new ArgumentException("Choose an exact static font first.");
+        if(!Document.Fonts.Any(f=>f.Id==a.Style.Font!.ArtifactId))throw new ArgumentException("Choose a font first.");
         // Native font IO and glyph validation run in the preview worker and export preflight, never in pointer/keyboard handlers.
     }
     private void ColorChoices(string label,Rgba32 current,Action<Rgba32> choose,bool clear=false)
@@ -189,8 +189,8 @@ public sealed class AnnotationInspector : StackPanel
             finally{busy=false;if(!lifetime.IsCancellationRequested){picker.IsEnabled=true;if(browse is not null)browse.IsEnabled=true;status.Text="";}}
         }
         var advanced=new Expander{Header="Advanced",IsExpanded=false,Margin=new(0,8,0,8)};var advancedBody=new StackPanel();advanced.Content=advancedBody;
-        advancedBody.Children.Add(new TextBlock{Text=artifact is null?"Select a local font file.":Path.GetFileName(artifact.OriginalPath),TextWrapping=TextWrapping.Wrap,Margin=new(0,6,0,8)});
-        advancedBody.Children.Add(new TextBlock{Text="Collection face index · starts at 0",TextWrapping=TextWrapping.Wrap});advancedBody.Children.Add(face);
+        advancedBody.Children.Add(new TextBlock{Text=artifact is null?"Choose a font file.":Path.GetFileName(artifact.OriginalPath),TextWrapping=TextWrapping.Wrap,Margin=new(0,6,0,8)});
+        advancedBody.Children.Add(new TextBlock{Text="Font face index (from 0)",TextWrapping=TextWrapping.Wrap});advancedBody.Children.Add(face);
         browse=MakeButton("Choose font file…",()=>
         {
             if(!int.TryParse(face.Text,out int index)||index<0)throw new ArgumentException("Face index must be a non-negative whole number.");
@@ -198,7 +198,7 @@ public sealed class AnnotationInspector : StackPanel
         });browse.Margin=new(0,8,0,4);advancedBody.Children.Add(browse);Children.Add(advanced);
         if(spec is not null)
         {
-            var size=Field("Font size · output pixels",N(spec.SizePixels),s=>FontSize(Number(s,1,16384),null));var leading=Field("Line height · output pixels",N(spec.LineHeight),s=>FontSize(null,Number(s,1,16384)));
+            var size=Field("Font size · px",N(spec.SizePixels),s=>FontSize(Number(s,1,16384),null));var leading=Field("Line height · px",N(spec.LineHeight),s=>FontSize(null,Number(s,1,16384)));
             FontSpec CurrentFont()=>Recipe.Annotations.FirstOrDefault(a=>a.Id==overlay.SelectedId)?.Style.Font??overlay.NewStyle.Font??spec;
             TrackValue(size,()=>N(CurrentFont().SizePixels));TrackValue(leading,()=>N(CurrentFont().LineHeight));
             void FontSize(double? size,double? leading){var current=((ImageRecipe)Document.Recipe).Annotations.FirstOrDefault(a=>a.Id==overlay.SelectedId);if(current?.Style.Font is {} f)overlay.ReplaceAnnotation(current with {Style=current.Style with {Font=f with {SizePixels=size??f.SizePixels,LineHeight=leading??f.LineHeight}}});else if(overlay.NewStyle.Font is {} n)overlay.NewStyle=overlay.NewStyle with {Font=n with {SizePixels=size??n.SizePixels,LineHeight=leading??n.LineHeight}};refresh();}

@@ -1,6 +1,6 @@
 # 0.3 preview notes
 
-Citrus 0.3.0-preview.2 adds automatic release updates and fixes black native corners around media editors. It retains the compact wheel, white menus and focused image, media and PDF editors. The complete package bundles offline engines. Source registration, native control matching, performance and clean-machine acceptance are separate questions. Earlier previews require [one manual upgrade](AUTOMATIC-UPDATES.md).
+Citrus 0.3.0-preview.4 polishes the menus and wheel, fills the wheel backing through its center, and fixes eight editing, performance and installer issues. The complete package bundles offline engines. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
 
 ## Current boundaries
 
@@ -16,7 +16,9 @@ Citrus 0.3.0-preview.2 adds automatic release updates and fixes black native cor
 
 ## Verification and performance
 
-Current local verification recorded **604 backend passes** across two disjoint batches, **234 core passes**, and **52 passes** in the final compact video/control/crop batch. Windows batches overlap and must not be summed. Outputs were independently reopened where applicable. Source-hash, cancellation and collision-safe publication checks remain enabled.
+Local verification recorded **271 core passes**, **609 conversion passes with four capability skips**, **77 editor regression passes**, and **126 focused wheel passes with three opt-in native cancellation skips**. Batches overlap and must not be summed. Isolated installer transitions passed nine update cases and two recovery cases. Source-hash, cancellation and collision-safe publication checks remain enabled.
+
+The full Windows suite was not green: native foreground/compositor proof cases and a symlink privilege case remain unresolved on this machine. A targeted recheck passed three native cases and failed seven. These checks have not been weakened, and their failures do not count as visual or clean-machine acceptance.
 
 Generated-source optical rendering/readback/bitmap publication measured p95 2.60 / 3.30 / 8.06 ms at 1× / 1.5× / 2×. These are bounded GPU experiments, not desktop scanout. Prepared native target-show p95 was 18.17 and 20.54 ms, above the 16.7-ms target. Tiny-file video-editor readiness ranged from 347.3 to 611.7 ms: single observations per tool, not percentiles. Exact source scanning and verification still take work.
 

@@ -20,6 +20,9 @@ public sealed class MediaProbe : IAsyncDisposable
     private bool ownsDirectory;
     private long timestampScans;
     internal long TimestampScanCount => Interlocked.Read(ref timestampScans);
+    private long sourceVerificationBytes;
+    internal long SourceVerificationBytes=>Interlocked.Read(ref sourceVerificationBytes);
+    private void SourceVerified(long bytes)=>Interlocked.Add(ref sourceVerificationBytes,bytes);
     private sealed record Registration(VerifiedMediaSource Binding,MediaSourceInfo Info);
     private sealed record Window(Guid SourceId,int Stream,TimeRange Coverage,ImmutableArray<FrameStamp> Frames);
     private sealed class ScanState(JsonElement metadata)
@@ -46,9 +49,9 @@ public sealed class MediaProbe : IAsyncDisposable
         lock(sync)
         {
             ThrowIfDisposed(); var registration=Find(snapshot.Id);
-            if(registration.Binding.Snapshot!=snapshot||!Path.IsPathFullyQualified(path)||EditorPathPolicy.Same(snapshot.Path,path)) throw new ArgumentException("Source identity differs from inspection.");
+            if(registration.Binding.Snapshot!=snapshot||!Path.IsPathFullyQualified(path)||!EditorPathPolicy.Same(registration.Binding.Path,path)) throw new ArgumentException("Source identity differs from inspection.");
             SafeEditorFiles.RejectLinks(path);
-            return new(snapshot,Path.GetFullPath(path));
+            return registration.Binding;
         }
     }
     internal FrameStamp SelectFrame(Guid id,int stream,TimeRange clip,RationalTime requested)
@@ -71,11 +74,12 @@ public sealed class MediaProbe : IAsyncDisposable
         using var cancel=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
         await gate.WaitAsync(cancel.Token).ConfigureAwait(false);
         string? owned=null;
+        VerifiedMediaSource? pendingBinding=null;
         try
         {
             lock(sync) ThrowIfDisposed();
             // Check captured identity even on cache hits: a changed original requires explicit Reload.
-            await new VerifiedMediaSource(source,source.Path).VerifyAsync(cancel.Token).ConfigureAwait(false);
+            await new VerifiedMediaSource(source,source.Path,SourceVerified).VerifyAsync(cancel.Token).ConfigureAwait(false);
             lock(sync) if(sources.TryGetValue(source.Id,out var found))
             {
                 if(found.Binding.Snapshot!=source) throw new ArgumentException("Source ID is already registered with another snapshot.");
@@ -85,7 +89,8 @@ public sealed class MediaProbe : IAsyncDisposable
             if(!ownsDirectory) { SafeEditorFiles.RejectLinks(directory); Directory.CreateDirectory(directory); ownsDirectory=true; }
             owned=Path.Combine(directory,Guid.NewGuid().ToString("N"));
             var staged=await snapshots.StageVerifiedAsync([source],owned,cancel.Token).ConfigureAwait(false);
-            var binding=new VerifiedMediaSource(source,staged[source.Id]);
+            var binding=pendingBinding=new VerifiedMediaSource(source,staged[source.Id],SourceVerified,lockForSession:true);
+            await binding.VerifyAsync(cancel.Token).ConfigureAwait(false);
             using var metadata=await process.ProbeJsonAsync(["-show_streams","-of","json",..MediaProcess.InputArguments(binding.Path)],2*1024*1024,cancel.Token).ConfigureAwait(false);
             var streams=metadata.RootElement.GetProperty("streams").EnumerateArray()
                 .Where(s=>Text(s,"codec_type") is "video" or "audio")
@@ -149,9 +154,9 @@ public sealed class MediaProbe : IAsyncDisposable
                     AddWindow(new(source.Id,video.Index,new(MediaTime.Zero,next is {} p?MediaTime.Sub(MediaTime.Pts(p,video.TimeBase),origin):duration),video.Frames));
                 }
             }
-            owned=null; return info;
+            pendingBinding=null;owned=null;return info;
         }
-        finally { if(owned is not null&&Directory.Exists(owned)) Directory.Delete(owned,true); gate.Release(); }
+        finally {try{pendingBinding?.Dispose();if(owned is not null&&Directory.Exists(owned))Directory.Delete(owned,true);}finally{gate.Release();}}
     }
     public async Task<ImmutableArray<FrameStamp>> ReadFrameTimesAsync(Guid sourceId,int streamIndex,TimeRange sourceRange,int maximumFrames,CancellationToken ct)
     {
@@ -301,7 +306,7 @@ public sealed class MediaProbe : IAsyncDisposable
         lock(sync) { if(disposed) return; disposed=true; }
         await lifetime.CancelAsync().ConfigureAwait(false);
         await gate.WaitAsync().ConfigureAwait(false);
-        try { lock(sync) { sources.Clear(); windows.Clear(); } if(ownsDirectory&&Directory.Exists(directory)) Directory.Delete(directory,true); }
+        try { lock(sync) {foreach(var source in sources.Values)source.Binding.Dispose();sources.Clear();windows.Clear();}if(ownsDirectory&&Directory.Exists(directory))Directory.Delete(directory,true);}
         finally { gate.Release(); }
     }
 }

@@ -114,7 +114,7 @@ public sealed class MediaProcess
         try
         {
             ct.ThrowIfCancellationRequested();
-            if (!File.Exists(executable)) throw new FileNotFoundException("The offline media engine is missing. Reinstall Citrus.", executable);
+            if (!File.Exists(executable)) throw new FileNotFoundException("Media tools are missing. Reinstall Citrus.", executable);
             var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetDirectoryName(executable)! };
             foreach (string argument in arguments) start.ArgumentList.Add(argument);
             using var child = new Process { StartInfo = start };
@@ -201,7 +201,7 @@ public sealed class MediaProcess
     private static async Task<string> InvokeAsync(string executable, IReadOnlyList<string> arguments, IProgress<ConversionProgress>? progress, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        if (!File.Exists(executable)) throw new FileNotFoundException("The offline media engine is missing. Reinstall Citrus to restore its bundled FFmpeg and FFprobe files.", executable);
+        if (!File.Exists(executable)) throw new FileNotFoundException("Media tools are missing. Reinstall Citrus.", executable);
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetDirectoryName(executable)! };
         foreach (string argument in arguments) start.ArgumentList.Add(argument);
         using var process = new Process { StartInfo = start };

@@ -146,16 +146,14 @@ public sealed partial class PdfEngine(OutputWriter? outputWriter = null) : IConv
 
     private async Task CreateFromImagesAsync(IReadOnlyList<string> paths, string desired, List<string> outputs, CancellationToken token)
     {
-        var images = new List<MagickImage>();
         var resources = new List<IDisposable>();
         try
         {
-            // Validate every input before starting a final output, using the same explicit decoders as ImageEngine.
-            foreach (string path in paths) images.Add(ValidatedImageLoader.Load(path, token));
             using var document = new PdfDocument();
-            foreach (var image in images)
+            foreach (string path in paths)
             {
                 token.ThrowIfCancellationRequested();
+                using var image = ValidatedImageLoader.Load(path, token);
                 // Fixed 96 pixels/inch avoids untrusted/absent density metadata and preserves aspect ratio.
                 var page = document.AddPage();
                 page.Width = XUnit.FromPoint(image.Width * 72d / 96);
@@ -172,7 +170,6 @@ public sealed partial class PdfEngine(OutputWriter? outputWriter = null) : IConv
         finally
         {
             for (int i = resources.Count - 1; i >= 0; i--) resources[i].Dispose();
-            foreach (var image in images) image.Dispose();
         }
     }
 

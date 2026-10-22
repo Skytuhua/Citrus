@@ -27,7 +27,7 @@ internal sealed class AutomaticUpdateService(IAutomaticUpdateBackend backend, Fu
 {
     private readonly SemaphoreSlim operation = new(1, 1);
     private ReadyUpdate? ready;
-    private AutomaticUpdateStatus status = new("Updates are checked in the background.");
+    private AutomaticUpdateStatus status = new("Not checked yet.");
     internal ReadyUpdate? Ready => Volatile.Read(ref ready);
     internal AutomaticUpdateStatus Status => Volatile.Read(ref status);
     internal event Action<AutomaticUpdateStatus>? Changed;
@@ -53,23 +53,23 @@ internal sealed class AutomaticUpdateService(IAutomaticUpdateBackend backend, Fu
         {
             if (!await operation.WaitAsync(0, ct).ConfigureAwait(false)) return;
             acquired = true;
-            Publish(new("Checking GitHub releases…", Checking: true));
+            Publish(new("Checking for updates…", Checking: true));
             var candidate = await backend.CheckAsync(ct).ConfigureAwait(false);
             if (candidate is null)
             {
                 Volatile.Write(ref ready, null);
-                Publish(new("Citrus is up to date."));
+                Publish(new("Up to date."));
                 return;
             }
             if (ReleaseVersion.TryParse(failedVersion, out var failed) && ReleaseVersion.TryParse(candidate.Version, out var proposed) && proposed!.CompareTo(failed) == 0)
             {
                 Volatile.Write(ref ready, null);
-                Publish(new($"The automatic update to {candidate.Version} could not be installed. Use GitHub releases to install it manually."));
+                Publish(new($"Update {candidate.Version} failed. Install it manually from GitHub releases."));
                 return;
             }
             if (!canStage)
             {
-                Publish(new($"Version {candidate.Version} is available. Install the new release once to enable automatic updates."));
+                Publish(new($"Version {candidate.Version} available. Install it from GitHub releases."));
                 return;
             }
             var existing = Ready;
@@ -79,7 +79,7 @@ internal sealed class AutomaticUpdateService(IAutomaticUpdateBackend backend, Fu
                 return;
             }
             Volatile.Write(ref ready, null);
-            Publish(new($"Downloading Citrus {candidate.Version} in the background…", Checking: true));
+            Publish(new($"Downloading {candidate.Version}…", Checking: true));
             string installer = await backend.DownloadAsync(candidate, ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             Volatile.Write(ref ready, new(candidate, installer));
@@ -87,11 +87,11 @@ internal sealed class AutomaticUpdateService(IAutomaticUpdateBackend backend, Fu
         }
         catch (OperationCanceledException)
         {
-            Publish(new("Update check canceled. Your current version is unchanged."));
+            Publish(new("Update check canceled."));
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            Publish(new("Updates could not be checked or downloaded. Citrus will try again later."));
+            Publish(new("Updates could not be checked or downloaded. Try again."));
         }
         finally { if (acquired) operation.Release(); }
     }
@@ -103,7 +103,7 @@ internal sealed class AutomaticUpdateService(IAutomaticUpdateBackend backend, Fu
     }
 
     private static AutomaticUpdateStatus ReadyStatus(UpdateCandidate candidate) =>
-        new($"Citrus {candidate.Version} is ready. It will install when Citrus is idle.", ReadyVersion: candidate.Version);
+        new($"Version {candidate.Version} ready. Installs when idle.", ReadyVersion: candidate.Version);
 
     private void Publish(AutomaticUpdateStatus value)
     {

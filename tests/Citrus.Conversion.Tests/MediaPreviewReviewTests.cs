@@ -34,6 +34,20 @@ public sealed class MediaPreviewReviewTests : IAsyncLifetime
         catch { await probe.DisposeAsync(); throw; }
     }
     private MediaGraphPlan Compile(MediaProbe probe,EditorDocument document)=>new MediaGraphCompiler(probe,capabilities).Compile(document,RenderPurpose.Preview,new(1,new(16,8),new(0,1),null,null),probe.StagedSources);
+    [Fact]
+    public async Task Export_PCM_does_not_take_a_preview_worker()
+    {
+        var (probe,document,_)=await Audio("mkv");
+        await using(probe)
+        {
+            var plan=Compile(probe,document);
+            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var first=await PreviewWorkScheduler.AcquireAsync(deadline.Token);
+            using var second=await PreviewWorkScheduler.AcquireAsync(deadline.Token);
+            var pcm=await new MediaBinaryDecoder(process).DecodeExportAudioAsync(plan,Path.Combine(directory,"export.pcm"),deadline.Token);
+            Assert.Equal(12000,pcm.SampleFrames);
+        }
+    }
     [Theory]
     [InlineData("mka","0")]
     [InlineData("mka","10")]
@@ -150,18 +164,21 @@ public sealed class MediaPreviewReviewTests : IAsyncLifetime
                 // A missing PCM path proves queued waveform work does not even open its file.
                 _=>new WaveformService().BuildAsync(new(Path.Combine(directory,"missing.pcm"),48000,1,1),1,ct)
             };
-            // Corrupt only the private copy while work is queued: a decoder that bypasses
-            // the budget faults during its synchronous length check, before starting FFmpeg.
+            // Windows stages stay locked; other platforms revalidate changed bytes after acquiring a lease.
             string staged=probe.StagedSources[document.Sources[0].Id];
             byte[] verified=await File.ReadAllBytesAsync(staged,timeout.Token);
-            if(kind!="waveform") await File.AppendAllTextAsync(staged,"changed while queued",timeout.Token);
+            if(kind!="waveform")
+            {
+                if(OperatingSystem.IsWindows())await Assert.ThrowsAsync<IOException>(()=>File.AppendAllTextAsync(staged,"changed while queued",timeout.Token));
+                else await File.AppendAllTextAsync(staged,"changed while queued",timeout.Token);
+            }
             var queued=Run(queuedCancel.Token);
             await Task.Delay(150,timeout.Token);
             Assert.False(queued.IsCompleted);
             Assert.False(File.Exists(pcm));
             queuedCancel.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>queued);
-            if(kind!="waveform") await File.WriteAllBytesAsync(staged,verified,timeout.Token);
+            if(kind!="waveform"&&!OperatingSystem.IsWindows())await File.WriteAllBytesAsync(staged,verified,timeout.Token);
             // Keep one foreign image/file lease occupied: media must require exactly one additional lease.
             second.Dispose();
             if(kind=="waveform") await Assert.ThrowsAsync<FileNotFoundException>(()=>Run(timeout.Token));

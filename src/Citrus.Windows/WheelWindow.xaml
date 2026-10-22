@@ -5,17 +5,11 @@
   <Canvas x:Name="Presentation" Width="368" Height="454" IsHitTestVisible="False">
    <p:MaterialSurface x:Name="Shell" Role="WheelShell" Width="352" Height="352" Canvas.Left="8" Canvas.Top="8"/>
    <Image x:Name="GlassBody" Width="368" Height="454" Stretch="Fill" Visibility="Collapsed"/>
-   <Ellipse Width="120" Height="120" Canvas.Left="124" Canvas.Top="124" Fill="{DynamicResource WheelHubBackground}" Stroke="{DynamicResource WheelHubRim}" StrokeThickness="0.6"/>
    <Image x:Name="GlassLighting" Width="368" Height="454" Stretch="Fill" Visibility="Collapsed"/>
    <Canvas x:Name="Sectors" Width="368" Height="368"/>
-   <Border x:Name="ThumbnailFrame" Canvas.Left="160" Canvas.Top="143" Width="48" Height="40" CornerRadius="8" Background="Transparent">
-    <Border.Clip><RectangleGeometry Rect="0,0,48,40" RadiusX="8" RadiusY="8"/></Border.Clip>
-    <Grid><Path x:Name="FileGlyph" Data="{StaticResource Icon.File}" Stroke="{DynamicResource SecondaryText}" StrokeThickness="1.5" Width="24" Height="30" Stretch="Uniform" StrokeLineJoin="Round"/><Image x:Name="Preview" Width="48" Height="40" Stretch="UniformToFill"/></Grid>
-   </Border>
-   <Border x:Name="CountBadge" Canvas.Left="201" Canvas.Top="141" CornerRadius="9" Background="{DynamicResource Accent}" Padding="5,1"><TextBlock x:Name="CountLabel" Foreground="{DynamicResource AccentText}" FontSize="11" FontWeight="SemiBold"/></Border>
-   <TextBlock x:Name="ModeLabel" ClipToBounds="True" Canvas.Left="154" Canvas.Top="237" Width="60" Height="16" LineHeight="16" LineStackingStrategy="BlockLineHeight" Text="CONVERT" Foreground="{DynamicResource SecondaryText}" FontWeight="SemiBold" FontSize="11" TextAlignment="Center"/>
-   <TextBlock x:Name="Badge" ClipToBounds="True" Canvas.Left="128" Canvas.Top="214" Width="112" Height="20" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="Drag a file here" Foreground="{DynamicResource SecondaryText}" FontSize="12" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>
-   <Border x:Name="CaptionPlate" Canvas.Left="130" Canvas.Top="191" Width="108" Height="28" Background="Transparent">
+   <TextBlock x:Name="ModeLabel" Visibility="Collapsed" ClipToBounds="True" Canvas.Left="154" Canvas.Top="237" Width="60" Height="16" LineHeight="16" LineStackingStrategy="BlockLineHeight" Text="CONVERT" Foreground="{DynamicResource SecondaryText}" FontWeight="SemiBold" FontSize="11" TextAlignment="Center"/>
+   <TextBlock x:Name="Badge" Visibility="Collapsed" ClipToBounds="True" Canvas.Left="128" Canvas.Top="214" Width="112" Height="20" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="Drag a file here" Foreground="{DynamicResource SecondaryText}" FontSize="12" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>
+   <Border x:Name="CaptionPlate" Canvas.Left="129" Canvas.Top="160" Width="110" Height="48" CornerRadius="24" Background="{DynamicResource CapsuleBackground}">
     <Grid><Grid.RowDefinitions><RowDefinition x:Name="CaptionRow" Height="*"/><RowDefinition x:Name="HintRow" Height="0"/></Grid.RowDefinitions>
      <TextBlock x:Name="Caption" Text="Choose" TextAlignment="Center" Foreground="{DynamicResource PrimaryText}" FontSize="16.5" FontWeight="Normal" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
 

@@ -93,10 +93,10 @@ public partial class VideoCropWindow : Window
             sessionProbe = new(engine.Process, engine.Sources, Path.Combine(previewRoot, "session-sources"));
             media = await sessionProbe.InspectAsync(source, lifetime.Token);
             var inspected = media.Video.FirstOrDefault() ?? throw new NotSupportedException("The selected file contains no video stream.");
-            if (inspected.IsHdr) throw new NotSupportedException("HDR cropping requires a validated color-preservation pipeline. Choose an SDR copy.");
+            if (inspected.IsHdr) throw new NotSupportedException("HDR cropping is not supported. Use an SDR copy.");
             if (inspected.DisplaySize.Width < 2 || inspected.DisplaySize.Height < 2) throw new NotSupportedException("Video dimensions must be at least two pixels.");
             silentPreview = media.Audio.FirstOrDefault()?.Channels.Length > 2;
-            if (silentPreview) Notice("Video-only preview for surround audio. The cropped copy keeps the source audio channels.");
+            if (silentPreview) Notice("Surround preview is silent; saved channels are unchanged.");
             var stream = media.Video[0]; var full = VideoCropGeometry.Fit(stream.DisplaySize, null);
             document = new(1, 0, [source], [], new VideoRecipe([new(Guid.NewGuid(), source.Id, stream.Index, media.Audio.FirstOrDefault()?.Index,
                 new(new(0, 1), media.Duration), 1)], full, new((int)full.Width, (int)full.Height), ImageFit.Contain, false, [], [], null, []),
@@ -230,7 +230,7 @@ public partial class VideoCropWindow : Window
         catch (AudioDeviceUnavailableException) when (!silentPreview && ReferenceEquals(work, seekWork) && !work.IsCancellationRequested)
         {
             silentPreview = true;
-            if (!closed) { Notice("Audio output is unavailable. Preview continues silently; the cropped copy keeps its audio."); await SeekTo(seconds, play, exact); }
+            if (!closed) { Notice("Audio output unavailable. Preview plays silently; saved audio is unchanged."); await SeekTo(seconds, play, exact); }
         }
         catch (Exception error) when (error is not OutOfMemoryException) { if (!closed && ReferenceEquals(work, seekWork)) { playIntent = false; Error(error.Message); } }
         finally { if (ReferenceEquals(work, seekWork)) seekPreparing = false; }

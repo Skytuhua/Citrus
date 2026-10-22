@@ -105,7 +105,7 @@ public sealed class ImageMetadataWindowReferenceTests(DesktopFixture desktop)
             var width = Assert.Single(Descendants(window).OfType<TextBlock>(),
                 text => AutomationProperties.GetName(text) == "Image Width (read only)");
             Assert.Equal("17", width.Text);
-            Assert.Equal("Read-only technical property", width.ToolTip);
+            Assert.Equal("Read only", width.ToolTip);
             Assert.DoesNotContain(Descendants(window).OfType<TextBox>(),
                 box => AutomationProperties.GetName(box).StartsWith("Image Width", StringComparison.Ordinal));
             Assert.DoesNotContain(Descendants(window).OfType<TextBox>(),

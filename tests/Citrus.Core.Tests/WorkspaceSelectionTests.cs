@@ -1,9 +1,63 @@
 using Citrus.Core;
+using System.Diagnostics;
+using System.Collections.Specialized;
+using Xunit.Abstractions;
 
 namespace Citrus.Core.Tests;
 
-public sealed class WorkspaceSelectionTests
+public sealed class WorkspaceSelectionTests(ITestOutputHelper output)
 {
+    [Fact]
+    public void Removing_and_clearing_release_case_insensitive_membership_for_later_additions()
+    {
+        var selection = new WorkspaceSelection();
+        selection.Add(["C:\\Photos\\one.png", "C:\\Photos\\two.png"]);
+        var removed = selection.Items[0];
+        selection.Remove(removed);
+        selection.Add(["c:\\photos\\ONE.png", "C:\\PHOTOS\\ONE.PNG"]);
+        Assert.Equal(["C:\\Photos\\two.png", "c:\\photos\\ONE.png"], selection.IncludedPaths);
+        Assert.NotSame(removed, selection.Items[1]);
+        Assert.True(selection.Items[1].IsIncluded);
+
+        selection.Clear();
+        selection.Add(["C:\\PHOTOS\\ONE.PNG"]);
+        Assert.Single(selection.Items);
+        Assert.Same(selection.Items[0], selection.Active);
+    }
+
+    [Fact]
+    public void Collection_observers_can_readd_removed_paths_and_clear_then_readd()
+    {
+        var selection = new WorkspaceSelection();
+        selection.Add(["one.png"]);
+        ((INotifyCollectionChanged)selection.Items).CollectionChanged += (_, args) =>
+        {
+            if (args.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Reset)
+                selection.Add(["ONE.PNG"]);
+        };
+
+        selection.Remove(selection.Items[0]);
+        Assert.Equal("ONE.PNG", Assert.Single(selection.Items).Path);
+        selection.Clear();
+        Assert.Equal("ONE.PNG", Assert.Single(selection.Items).Path);
+    }
+
+    [Fact]
+    public void Large_batch_admission_preserves_order_and_uses_one_membership_notification()
+    {
+        var selection = new WorkspaceSelection();
+        string[] paths = Enumerable.Range(0, 10_000).Select(index => $"C:\\Photos\\{index:D5}.png").ToArray();
+        int notifications = 0;
+        selection.MembershipChanged += () => notifications++;
+        long start = Stopwatch.GetTimestamp();
+        selection.Add(paths);
+        double elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        output.WriteLine($"Admission of {paths.Length:N0} distinct paths: {elapsed:F3} ms");
+        Assert.Equal(paths, selection.IncludedPaths);
+        Assert.Equal(1, notifications);
+        Assert.Same(selection.Items[0], selection.Active);
+    }
+
     [Fact]
     public void Preview_navigation_never_changes_explicit_batch_membership()
     {

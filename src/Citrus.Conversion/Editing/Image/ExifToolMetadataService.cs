@@ -105,7 +105,7 @@ public sealed class ExifToolMetadataService(string executable):IMetadataService
     public static string Text(MetadataValue value)=>value switch{TextValue t=>t.Value,IntegerValue i=>i.Value.ToString(CultureInfo.InvariantCulture),RealValue r=>r.Value.ToString("R",CultureInfo.InvariantCulture),RationalValue r=>$"{r.Numerator}/{r.Denominator}",CaptureTimeValue d=>d.Local.ToString("yyyy:MM:dd HH:mm:ss",CultureInfo.InvariantCulture)+(d.Offset?.ToString(@"hh\:mm",CultureInfo.InvariantCulture)??""),GpsValue g=>$"{g.Latitude.ToString(CultureInfo.InvariantCulture)}, {g.Longitude.ToString(CultureInfo.InvariantCulture)}",_=>throw new ArgumentException("Unsupported metadata value.")};
     private async Task<string> RunAsync(string[] args,CancellationToken ct)
     {
-        if(!Available)throw new FileNotFoundException("The offline metadata feature pack is missing.",Executable);
+        if(!Available)throw new FileNotFoundException("Metadata tools are missing. Reinstall Citrus.",Executable);
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(TimeSpan.FromSeconds(30));
         var start=new ProcessStartInfo(Executable){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=true,StandardInputEncoding=new UTF8Encoding(false),StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,WorkingDirectory=Path.GetDirectoryName(Executable)!};
         start.Environment["LC_ALL"]="C";start.Environment["LC_CTYPE"]="C";start.Environment["LANG"]="C";start.ArgumentList.Add("-config");start.ArgumentList.Add("");start.ArgumentList.Add("-@");start.ArgumentList.Add("-");

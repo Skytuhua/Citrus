@@ -29,7 +29,7 @@ public sealed record EngineRegistry(IReadOnlyList<IConversionEngine> Engines, IR
             var engines = new List<IConversionEngine> { new ImageEngine(writer), pdf, new SubtitleEngine(writer), new ArchiveEngine(outputWriter: writer) };
             var documents = new DocumentConversionEngine(writer);
             if (documents.HasRequiredPackFiles) engines.Add(documents);
-            else warnings.Add("Office and EPUB conversion is unavailable: repair the bundled offline document feature pack.");
+            else warnings.Add("Office and EPUB conversion unavailable. Repair Citrus.");
             VideoCropEngine? videoCrop = null;
             MediaEditorEngine? mediaEditors = null;
             try
@@ -67,7 +67,7 @@ public sealed record EngineRegistry(IReadOnlyList<IConversionEngine> Engines, IR
             try
             {
                 var metadata = new ExifToolMetadataService(Path.Combine(Path.GetDirectoryName(toolsDirectory)!, "image", "exiftool", "exiftool.exe"));
-                if (!metadata.Available) throw new FileNotFoundException("The offline metadata reader is missing.");
+                if (!metadata.Available) throw new FileNotFoundException("Metadata tools are missing. Reinstall Citrus.");
                 string scope = Path.Combine(Path.GetTempPath(), "citrus-metadata-capability-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(scope);
                 try

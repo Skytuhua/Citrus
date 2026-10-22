@@ -8,6 +8,7 @@ public partial class SettingsWindow : Window
     private readonly Func<CitrusSettings, Task> apply;
     private readonly Func<Task>? checkUpdates, restartUpdate;
     private readonly Action? openReleases;
+    private bool saving;
     public SettingsWindow(CitrusSettings settings, Func<CitrusSettings, Task> apply,
         Func<Task>? checkUpdates = null, Func<Task>? restartUpdate = null, Action? openReleases = null)
     {
@@ -24,7 +25,7 @@ public partial class SettingsWindow : Window
         AutomaticUpdates.IsChecked = settings.AutomaticUpdates;
         CheckUpdates.IsEnabled = checkUpdates is not null;
         OpenReleases.IsEnabled = openReleases is not null;
-        UpdateStatus.Text = "Updates are checked in installed release builds.";
+        UpdateStatus.Text = "Install Citrus to check for updates.";
         Reveal.IsChecked = settings.RevealCompletedOutputs;
         Gestures.IsChecked = settings.GesturesEnabled;
         Theme.SelectedItem = settings.Theme;
@@ -45,6 +46,11 @@ public partial class SettingsWindow : Window
     private void OpenGitHubReleases(object sender, RoutedEventArgs e) => openReleases?.Invoke();
     private async void Save(object sender, RoutedEventArgs e)
     {
+        if (saving) return;
+        saving = true;
+        SaveSettingsButton.IsEnabled = false;
+        SaveSettingsButton.Content = "Saving…";
+        Error.Text = "";
         try
         {
             var settings = new CitrusSettings { SoundEnabled = Sound.IsChecked == true, ReduceMotion = Motion.IsChecked == true, ReduceTransparency = Transparency.IsChecked == true, LaunchAtSignIn = Startup.IsChecked == true, RevealCompletedOutputs = Reveal.IsChecked == true,
@@ -56,5 +62,11 @@ public partial class SettingsWindow : Window
             Close();
         }
         catch (Exception error) { Error.Text = error.Message; }
+        finally
+        {
+            saving = false;
+            SaveSettingsButton.IsEnabled = true;
+            SaveSettingsButton.Content = "Save";
+        }
     }
 }

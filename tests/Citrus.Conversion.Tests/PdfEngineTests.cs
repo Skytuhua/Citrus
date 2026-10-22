@@ -64,6 +64,20 @@ public sealed class PdfEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Photo_batch_preserves_every_page_and_source()
+    {
+        var paths = Enumerable.Range(0, 24).Select(index => Image("photo-" + index, 2048, 1536,
+            index % 2 == 0 ? MagickColors.Red : MagickColors.Blue)).ToArray();
+        var originals = paths.Select(path => System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).ToArray();
+        string output = Assert.Single((await Execute("images.pdf", paths)).Outputs);
+        using var document = PigDocument.Open(output);
+        Assert.Equal(paths.Length, document.NumberOfPages);
+        Assert.All(document.GetPages(), page => { Assert.Equal(1536d, page.Width, 2); Assert.Equal(1152d, page.Height, 2); });
+        for (int index = 0; index < paths.Length; index++)
+            Assert.Equal(originals[index], System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(paths[index])));
+    }
+
+    [Fact]
     public async Task Merge_preserves_group_and_internal_page_order_without_replacing_existing_output()
     {
         string a = Pdf("first", "First", "Second"), b = Pdf("last", "Last");

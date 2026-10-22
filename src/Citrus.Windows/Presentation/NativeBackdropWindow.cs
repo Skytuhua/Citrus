@@ -45,16 +45,6 @@ internal sealed class NativeBackdropWindow : IDisposable
         if (right > bounds.Width || bottom > bounds.Height || right <= left) throw new ArgumentOutOfRangeException(nameof(bounds));
         nint region = BackdropNativeMethods.CreateEllipticRgn(left, top, right, bottom);
         if (region == 0) throw new Win32Exception();
-        // The neutral center remains a real opening onto the source window. The OS drag
-        // thumbnail stays above the wheel; this helper must not blur or duplicate it.
-        int holeLeft = (int)Math.Floor((WheelGeometry.CenterX - 60) * scale);
-        int holeRight = (int)Math.Ceiling((WheelGeometry.CenterX + 60) * scale);
-        nint hole = BackdropNativeMethods.CreateEllipticRgn(holeLeft, holeLeft, holeRight, holeRight);
-        if (hole == 0) { BackdropNativeMethods.DeleteObject(region); throw new Win32Exception(); }
-        int combined;
-        try { combined = BackdropNativeMethods.CombineRgn(region, region, hole, 4); } // RGN_DIFF
-        finally { BackdropNativeMethods.DeleteObject(hole); }
-        if (combined == 0) { BackdropNativeMethods.DeleteObject(region); throw new Win32Exception(); }
         if (BackdropNativeMethods.SetWindowRgn(Handle, region, false) == 0)
         {
             BackdropNativeMethods.DeleteObject(region); // On success the OS owns the region.

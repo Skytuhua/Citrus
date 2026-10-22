@@ -1,6 +1,6 @@
 # Citrus for Windows
 
-**0.3.0-preview.3 · Windows x64 · unsigned public preview**
+**0.3.0-preview.4 · Windows x64 · unsigned public preview**
 
 Citrus puts file conversions and small editing tools beside your files. Process
 images, video, audio, PDFs, documents, presentations, spreadsheets, EPUBs,
@@ -38,8 +38,9 @@ for the included operations. Desktop-glass availability depends on Windows,
 hardware and capture permissions; the readable opaque fallback remains available.
 
 Setup is per-user and does not require administrator rights. Quit Citrus in
-every session first. To replace an older preview with a different payload,
-uninstall that preview before installing this one. Setup never force-kills work.
+every session first. Setup upgrades an existing installation and restores it if
+an upgrade fails. Earlier previews without automatic updates require one manual
+installation. Setup never force-kills work.
 Uninstall removes installer-owned files; settings and unrelated outputs remain.
 
 This preview is **not code-signed**. Windows may report an unknown publisher or

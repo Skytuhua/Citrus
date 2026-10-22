@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0-preview.4 — 2026-10-21
+
+- Filled the wheel backing continuously through its center, retained the selected-format label and center cancellation, and removed the file preview.
+- Hid menu scrollbars, simplified unnecessary interface copy, and improved job-progress and workspace selection responsiveness.
+- Fixed PDF deletion while editing text, stale audio auto-trim results, and fields not being applied when submitting with Enter.
+- Streamed long audio exports beyond the preview memory limit, reused verified video sources for seeking, and reduced image-to-PDF peak memory.
+- Fixed interrupted-upgrade recovery after restoring the previous installation and one-pixel screenshot crop rounding.
+
 ## 0.3.0-preview.3 — 2026-10-21
 
 - Reduced the actual complete installer download by distributing corresponding third-party sources separately and omitting debugging symbols.

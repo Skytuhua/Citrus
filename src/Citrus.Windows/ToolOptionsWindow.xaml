@@ -9,7 +9,7 @@
       <TextBlock x:Name="InputSummary" FontWeight="SemiBold" Margin="0,0,0,8"/>
       <TextBlock x:Name="OperationDescription" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryText}" Margin="0,0,0,16"/>
       <StackPanel x:Name="GroupPanel" Visibility="Collapsed">
-        <TextBlock Text="Input order" FontWeight="SemiBold"/><TextBlock Text="The first input supplies the output name." Foreground="{DynamicResource SecondaryText}" Margin="0,6,0,8"/>
+        <TextBlock Text="Input order" FontWeight="SemiBold"/><TextBlock Text="Name comes from the first file." Foreground="{DynamicResource SecondaryText}" Margin="0,6,0,8"/>
         <ListBox x:Name="OrderedInputs" Height="150" SelectionChanged="OrderSelectionChanged" AutomationProperties.Name="Ordered group inputs">
           <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" ToolTip="{Binding}" TextTrimming="CharacterEllipsis"/></DataTemplate></ListBox.ItemTemplate>
         </ListBox>
@@ -21,7 +21,6 @@
         <TextBlock Text="Save copies to" FontWeight="SemiBold"/>
         <TextBlock x:Name="DestinationText" TextWrapping="Wrap" Margin="0,6,0,8"/>
         <Button Content="Choose folder…" Click="ChooseFolder" HorizontalAlignment="Left" Style="{DynamicResource SecondaryButton}"/>
-        <TextBlock Text="Originals stay untouched. Existing files are never replaced." TextWrapping="Wrap" Foreground="{DynamicResource SecondaryText}" FontSize="{DynamicResource MetadataSize}" LineHeight="{DynamicResource MetadataLeading}" Margin="0,12,0,0"/>
       </StackPanel></Border>
     </StackPanel></ScrollViewer>
     <TextBlock Grid.Row="2" x:Name="ErrorText" TextWrapping="Wrap" Foreground="{DynamicResource ErrorText}" Margin="24,12" AutomationProperties.LiveSetting="Assertive"/>

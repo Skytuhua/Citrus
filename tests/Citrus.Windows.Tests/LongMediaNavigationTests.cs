@@ -47,7 +47,7 @@ public sealed class LongMediaNavigationTests(DesktopFixture desktop)
             }
             else
             {
-                var preparation=new MediaPlaybackPreparation(process,engine.Sources,Path.Combine(root,"late-audition"),new(32,24));
+                await using var preparation=new MediaPlaybackPreparation(process,engine.Sources,Path.Combine(root,"late-audition"),new(32,24));
                 await using var prepared=await preparation.PrepareAsync(document!,new(new(130,1),new(140,1)),false,1,default);
                 byte[] samples=await File.ReadAllBytesAsync(prepared.Audio!.Path);
                 Assert.All(samples.Take(48000*2),b=>Assert.Equal(0,b));Assert.Contains(samples.Skip(48000*2),b=>b!=0);

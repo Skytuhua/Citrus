@@ -39,6 +39,8 @@ public sealed class MediaEditorWindow : Window
     private readonly Dictionary<Guid,Guid?> selectedBleeps=[];
     private readonly Dictionary<Guid,double> playheads=[];
     private readonly Dictionary<Guid,bool> resizeAspect=[];
+    private readonly HashSet<TextBox> invalidFields=[];
+    private Action? commitResizeFields;
     private EditorOpenRequest request=null!;
     private EditorDocument document=null!;
     private MediaSourceInfo info=null!;
@@ -58,7 +60,7 @@ public sealed class MediaEditorWindow : Window
     private Slider? fullTimeline;
     private TextBlock? auditionReadout;
     private int selected;
-    private bool closed,shown,hydratingControls,invalidVideoSize;
+    private bool closed,shown,hydratingControls,invalidVideoSize,applying;
     private CancellationTokenSource? previewWork;
     private long viewGeneration;
     private long sourceGeneration;
@@ -110,7 +112,7 @@ public sealed class MediaEditorWindow : Window
     }
     private async Task LoadAsync()
     {
-        status.Text="Preparing local media…";
+        status.Text="Preparing media…";
         sessionProbe=new(engine.Process,engine.Sources,Path.Combine(previewRoot,"session-sources"));
         foreach(var result in await engine.Sources.CaptureAsync(request.InitialPaths,lifetime.Token))
         {
@@ -126,6 +128,11 @@ public sealed class MediaEditorWindow : Window
     private async Task ShowSourceAsync(int index)
     {
         if(index<0||index>=documents.Count)return;
+        if(index!=selected&&IsReady)
+        {
+            commitResizeFields?.Invoke();
+            if(invalidFields.Any(field=>field.IsEnabled)||invalidVideoSize||!CommitTimes()){if(sourcePicker is not null)sourcePicker.SelectedIndex=selected;return;}
+        }
         long ticket=++sourceGeneration;
         ++viewGeneration;previewDelay.Stop();previewWork?.Cancel();playback?.Stop();IsReady=false;apply.IsEnabled=false;body.IsEnabled=false;
         documents[selected]=document;selected=index;document=documents[index];
@@ -148,7 +155,7 @@ public sealed class MediaEditorWindow : Window
         if(ticket!=sourceGeneration||closed)return;
         info=inspected;
         foreach(string name in new[]{"FullTimeline","VideoTransport","VideoTrimSelection","ResizeOptions","ResizeWidth","ResizeHeight","PreserveVideoAspect"})if(FindName(name) is not null)UnregisterName(name);
-        invalidVideoSize=false;
+        invalidVideoSize=false;invalidFields.Clear();commitResizeFields=null;
         if(transport is not null)transport.Controller=null;
         videoPane.Content=null;videoPane.Visibility=Visibility.Collapsed;
         body.Children.Clear();channelViews.Clear();range=null;videoTrim=null;transport=null;metadataRows=null;startField=endField=null;visualizationPreview=null;fullTimeline=null;auditionReadout=null;sourcePicker=null;
@@ -157,13 +164,13 @@ public sealed class MediaEditorWindow : Window
             var picker=new ComboBox{ItemsSource=sources.Select(s=>Path.GetFileName(s.Path)).ToArray(),SelectedIndex=selected,Margin=new(0,0,0,12)};
             sourcePicker=picker;
             picker.SelectionChanged+=(_,_)=>{if(picker.SelectedIndex!=selected)Run(()=>ShowSourceAsync(picker.SelectedIndex));};body.Children.Add(picker);
-            body.Children.Add(new TextBlock{Text=$"{documents.Count} selected files · edits apply to the selected file",TextWrapping=TextWrapping.Wrap,Margin=new(0,0,0,12)});
+            body.Children.Add(new TextBlock{Text=$"{documents.Count} files · editing selected file",TextWrapping=TextWrapping.Wrap,Margin=new(0,0,0,12)});
         }
         body.Children.Add(new TextBlock{Text=Path.GetFileName(sources[index].Path),FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap,Margin=new(0,0,0,12)});
         if(document.Recipe is VideoRecipe)
         {
             var view=new MediaTransport{Controller=playback,VideoMode=true,ExternalTimeline=true};transport=view;
-            if(info.Audio.FirstOrDefault()?.Channels.Length>2)view.PreviewNotice="Surround audio preview is silent. The saved copy keeps its audio channels.";
+            if(info.Audio.FirstOrDefault()?.Channels.Length>2)view.PreviewNotice="Surround preview is silent; saved channels are unchanged.";
             view.WindowRequested=(position,play)=>Track(async()=>{if(ticket!=sourceGeneration||closed||!ReferenceEquals(transport,view))return;view.SetTimelinePosition(position);await RefreshPreviewAsync(play);});
             view.FrameRequested=direction=>Track(()=>StepVideoFrameAsync(view,ticket,direction));
             RegisterName("VideoTransport",transport);videoPane.Content=transport;videoPane.Visibility=Visibility.Visible;UpdateVideoSize();
@@ -206,14 +213,12 @@ public sealed class MediaEditorWindow : Window
                 previewDelay.Stop();previewDelay.Start();
             };
             videoTrim.SeekRequested+=position=>{if(fullTimeline is not null)fullTimeline.Value=position;};
-            body.Children.Add(Label("Drag the orange handles to keep a section."));
             durationText=Label(MediaRangeView.Timecode(videoTrim.SelectionEnd-videoTrim.SelectionStart)+" selected");body.Children.Add(durationText);
             var keep=new WrapPanel();
             keep.Children.Add(Button("Start here",()=>videoTrim.SetHandle(true,CurrentPlayhead(),true)));
             keep.Children.Add(Button("End here",()=>videoTrim.SetHandle(false,CurrentPlayhead(),true)));body.Children.Add(keep);
             return;
         }
-        body.Children.Add(Label("Drag the ends to trim"));
         var clip=Clips()[0];range=new(){Duration=Seconds(info.Duration),SelectionStart=Seconds(clip.Range.Start),SelectionEnd=Seconds(clip.Range.End),Height=150};
         range.TrimChanged+=(start,end,commit)=>
         {
@@ -226,7 +231,13 @@ public sealed class MediaEditorWindow : Window
         if(Id=="audio.trim")
         {
             var silent=new CheckBox{Content="Trim silent ends automatically",Margin=new(0,0,0,12)};
-            silent.Checked+=(_,_)=>Run(async()=>{var selectedRange=await engine.FindAudibleRangeAsync(initialDocuments[selected],lifetime.Token);SetRecipe(Trim(document.Recipe,selectedRange.Start,selectedRange.End),"silence");range.SelectionStart=Seconds(selectedRange.Start);range.SelectionEnd=Seconds(selectedRange.End);range.InvalidateVisual();UpdateTimes(range.SelectionStart,range.SelectionEnd);});body.Children.Add(silent);
+            silent.Checked+=(_,_)=>Run(async()=>
+            {
+                var captured=document;long ticket=sourceGeneration;var target=range;
+                var selectedRange=await engine.FindAudibleRangeAsync(initialDocuments[selected],lifetime.Token);
+                if(closed||ticket!=sourceGeneration||document!=captured||!ReferenceEquals(range,target)||target is null)return;
+                SetRecipe(Trim(document.Recipe,selectedRange.Start,selectedRange.End),"silence");target.SelectionStart=Seconds(selectedRange.Start);target.SelectionEnd=Seconds(selectedRange.End);target.InvalidateVisual();UpdateTimes(target.SelectionStart,target.SelectionEnd);
+            });body.Children.Add(silent);
             body.Children.Add(Button("▶ Play Selected Range",()=>Run(()=>PlayAsync(document,false))));
         }
         UpdateTimes(range.SelectionStart,range.SelectionEnd);
@@ -235,7 +246,7 @@ public sealed class MediaEditorWindow : Window
     {
         var audio=(AudioRecipe)document.Recipe;
         bleepCount=Label($"Bleeps {audio.Bleeps.Length}");body.Children.Add(bleepCount);
-        body.Children.Add(Label("Drag across the Bleep lane to add a range. Drag its edges to adjust it."));
+        body.Children.Add(Label("Drag to add a bleep; drag its edges to resize."));
         range=new(){BleepLane=true,Duration=MediaEditorEngine.Duration(document),Height=180,Regions=audio.Bleeps.Select(b=>new MediaInterval(b.Id,Seconds(b.Range.Start),Seconds(b.Range.End))).ToImmutableArray()};
         Guid? selectedId=selectedBleeps.TryGetValue(sources[selected].Id,out var saved)&&audio.Bleeps.Any(b=>b.Id==saved)?saved:audio.Bleeps.FirstOrDefault()?.Id;
         range.SelectRegion(selectedId);selectedBleeps[sources[selected].Id]=selectedId;
@@ -306,7 +317,7 @@ public sealed class MediaEditorWindow : Window
     {
         var audio=(AudioRecipe)document.Recipe;
         AddSlider("Integrated loudness",-70,-5,audio.Loudness?.IntegratedLufs??-16,"LUFS",value=>SetRecipe(((AudioRecipe)document.Recipe) with {Loudness=new(value,11,-1.5)},"loudness"));
-        body.Children.Add(Label("The output is measured and normalized to the selected loudness with peak protection."));body.Children.Add(Button("▶ Play Output",()=>Run(()=>PlayAsync(document,false))));
+        body.Children.Add(Button("▶ Play Output",()=>Run(()=>PlayAsync(document,false))));
     }
     private void BuildSpeed()
     {
@@ -316,7 +327,6 @@ public sealed class MediaEditorWindow : Window
     {
         var mute=new CheckBox{Content="Remove audio track",IsChecked=((VideoRecipe)document.Recipe).Mute,Margin=new(0,0,0,16)};
         mute.Click+=(_,_)=>{SetRecipe(((VideoRecipe)document.Recipe) with {Mute=mute.IsChecked==true},"mute");Run(RefreshPreviewAsync);};body.Children.Add(mute);
-        body.Children.Add(Label("The saved copy retains the video dimensions and duration."));
     }
     private void BuildSnapshot()
     {
@@ -336,7 +346,7 @@ public sealed class MediaEditorWindow : Window
     }
     private void BuildRedaction()
     {
-        body.Children.Add(Label("Drag the rectangle to place a manual redaction. No automatic tracking is applied."));
+        body.Children.Add(Label("Manual redaction; no tracking."));
         var video=(VideoRecipe)document.Recipe;var plane=info.Video[0].DisplaySize;
         var bounds=video.Masks.FirstOrDefault()?.Keys[0].Bounds??new RectD(plane.Width/4,plane.Height/4,Math.Max(2,plane.Width/2),Math.Max(2,plane.Height/2));
         if(video.Masks.IsEmpty) SetRecipe(video with {Masks=[new(Guid.NewGuid(),new(new(0,1),MediaEditorEngine.Time(MediaEditorEngine.Duration(document))),MaskEffect.Solid,new(0,0,0,255),12,[new(new(0,1),bounds)],MaskInterpolation.Step)]},"initial-mask");
@@ -351,6 +361,7 @@ public sealed class MediaEditorWindow : Window
     }
     private void BuildResize()
     {
+        long ticket=sourceGeneration;
         body.Children.Add(Label("Output size"));
         var source=info.Video[0].DisplaySize;
         var size=((VideoRecipe)document.Recipe).Canvas;
@@ -380,16 +391,18 @@ public sealed class MediaEditorWindow : Window
         var options=new Expander{Header="More options",Content=custom,Margin=new(0,4,0,8)};RegisterName("ResizeOptions",options);body.Children.Add(options);
         width.TextChanged+=(_,_)=>ValidateFields();height.TextChanged+=(_,_)=>ValidateFields();
         width.LostKeyboardFocus+=(_,_)=>Commit(true);height.LostKeyboardFocus+=(_,_)=>Commit(false);
+        commitResizeFields=()=>Commit(Keyboard.FocusedElement==height?false:Keyboard.FocusedElement==width?true:null);
         width.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){Commit(true);e.Handled=true;}};height.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){Commit(false);e.Handled=true;}};
         preserve.Click+=(_,_)=>Commit(null);
         bool Read(out int w,out int h){bool a=int.TryParse(width.Text,NumberStyles.None,CultureInfo.InvariantCulture,out w),b=int.TryParse(height.Text,NumberStyles.None,CultureInfo.InvariantCulture,out h);return a&&b&&w is >=2 and <=8190&&h is >=2 and <=8190;}
         void ValidateFields()
         {
-            if(updating)return;
+            if(updating||ticket!=sourceGeneration)return;
             invalidVideoSize=!Read(out _,out _);if(invalidVideoSize)status.Text="Enter pixel dimensions from 2 to 8190.";else if(status.Text=="Enter pixel dimensions from 2 to 8190.")status.Text="";UpdateAdmission();
         }
         void Commit(bool? widthChanged)
         {
+            if(ticket!=sourceGeneration)return;
             if(updating||!Read(out int w,out int h)){ValidateFields();return;}
             bool keep=preserve.IsChecked==true;resizeAspect[sources[selected].Id]=keep;
             var requested=request.InitialOptions with {Width=keep&&widthChanged==false?null:w,Height=keep&&widthChanged==true?null:h,PreserveAspectRatio=keep};
@@ -421,12 +434,12 @@ public sealed class MediaEditorWindow : Window
         var inputLabel=Label("");body.Children.Add(inputLabel);
         var input=Field(initial,"Compression value");body.Children.Add(input);var explanation=Label("");body.Children.Add(explanation);
         var slider=new Slider{Minimum=1,Maximum=100,Margin=new(0,12,0,12)};body.Children.Add(slider);
-        bool updating=false;string displayed=initial;
+        bool updating=false;
         void ShowGoal(CompressionGoal goal)
         {
             inputLabel.Text=goal switch {ReductionGoal=>"Reduce by (%)",ByteGoal=>"Maximum output size (KB)",_=>"Quality (1–100)"};
             long? target=goal switch {ReductionGoal r=>(long)decimal.Floor(original*(1-r.Percent/100)),ByteGoal b=>b.MaximumBytes,_=>null};
-            explanation.Text=target is {} maximum?$"Output will be at most {Size(maximum)}. Dimensions, duration and channels are preserved.":"Quality export. Actual file size depends on the source.";
+            explanation.Text=target is {} maximum?$"Maximum size: {Size(maximum)}.":"Size varies with quality.";
             updating=true;
             try
             {
@@ -439,12 +452,13 @@ public sealed class MediaEditorWindow : Window
         void Change()
         {
             inputLabel.Text=mode.SelectedIndex switch {0=>"Reduce by (%)",1=>"Maximum output size (KB)",_=>"Quality (1–100)"};
-            if(!double.TryParse(input.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out double value)||!double.IsFinite(value)||value<=0||mode.SelectedIndex==0&&value>=100||mode.SelectedIndex==2&&value>100||mode.SelectedIndex==1&&value>long.MaxValue/1024d) {apply.IsEnabled=false;explanation.Text=mode.SelectedIndex==0?"Enter a reduction greater than 0 and less than 100%.":mode.SelectedIndex==2?"Enter quality from 1 to 100.":"Enter a positive target size in KB.";return;}
+            if(!double.TryParse(input.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out double value)||!double.IsFinite(value)||value<=0||mode.SelectedIndex==0&&value>=100||mode.SelectedIndex==2&&value>100||mode.SelectedIndex==1&&value>long.MaxValue/1024d) {invalidFields.Add(input);apply.IsEnabled=false;explanation.Text=mode.SelectedIndex==0?"Enter a reduction greater than 0 and less than 100%.":mode.SelectedIndex==2?"Enter quality from 1 to 100.":"Enter a positive target size in KB.";return;}
+            invalidFields.Remove(input);
             CompressionGoal goal=mode.SelectedIndex switch {0=>new ReductionGoal((decimal)value),1=>new ByteGoal(Math.Max(1,checked((long)(value*1024)))),_=>new QualityGoal((int)Math.Max(1,value))};SetExport(document.Export with {Compression=goal},"compression");
-            displayed=input.Text;ShowGoal(goal);
+            ShowGoal(goal);
         }
-        input.LostKeyboardFocus+=(_,_)=>{if(input.Text!=displayed)Change();};mode.SelectionChanged+=(_,_)=>Change();
-        slider.ValueChanged+=(_,_)=>{if(updating)return;input.Text=slider.Value.ToString(mode.SelectedIndex==0?"0.##":"0",CultureInfo.InvariantCulture);Change();};
+        input.TextChanged+=(_,_)=>Change();mode.SelectionChanged+=(_,_)=>Change();
+        slider.ValueChanged+=(_,_)=>{if(updating)return;input.Text=slider.Value.ToString(mode.SelectedIndex==0?"0.##":"0",CultureInfo.InvariantCulture);};
         if(Id=="audio.compress")
         {
             string[] formats=["MP3","M4A","FLAC","WAV","OGG"];
@@ -455,8 +469,8 @@ public sealed class MediaEditorWindow : Window
     private async Task BuildMetadataAsync(long ticket)
     {
         var fields=await engine.ReadMetadataAsync(sources[selected],lifetime.Token);if(ticket!=sourceGeneration||closed)return;metadata=fields;body.Children.Add(Label("Search metadata"));search=Field("","Search metadata");search.TextChanged+=(_,_)=>RenderMetadata();body.Children.Add(search);metadataRows=new(){Margin=new(0,14,0,0)};body.Children.Add(metadataRows);
-        RenderMetadata();body.Children.Add(Label("Remove All clears removable descriptive tags. Technical stream and container fields remain read-only."));
-        body.Children.Add(Button("Remove All",()=>{var edits=metadata.Where(f=>f.Removable&&f.Value is not TextValue {Value:""}).Select(f=>new MetadataEdit(f.Scope,f.Key,MetadataEditAction.Remove,null)).ToImmutableArray();SetMetadata(edits,MetadataPolicy.StripAll);RenderMetadata();}));
+        RenderMetadata();
+        var removeAll=Button("Remove All",()=>{var edits=metadata.Where(f=>f.Removable&&f.Value is not TextValue {Value:""}).Select(f=>new MetadataEdit(f.Scope,f.Key,MetadataEditAction.Remove,null)).ToImmutableArray();SetMetadata(edits,MetadataPolicy.StripAll);RenderMetadata();});removeAll.ToolTip="Remove editable tags";body.Children.Add(removeAll);
     }
     private void RenderMetadata()
     {
@@ -475,7 +489,7 @@ public sealed class MediaEditorWindow : Window
                 if(field.Writable)
                 {
                     var value=Field(text,field.DisplayName);Grid.SetColumn(value,1);row.Children.Add(value);
-                    value.LostKeyboardFocus+=(_,_)=>{if(value.Text==text)return;var values=MetadataEdits().Where(e=>e.Scope!=field.Scope||e.Key!=field.Key).Append(new(field.Scope,field.Key,value.Text.Length==0?MetadataEditAction.Remove:MetadataEditAction.Set,value.Text.Length==0?null:new TextValue(value.Text))).ToImmutableArray();SetMetadata(values,MetadataPolicy.PreserveSupported);};
+                    value.TextChanged+=(_,_)=>{var values=MetadataEdits().Where(e=>e.Scope!=field.Scope||e.Key!=field.Key).Append(new(field.Scope,field.Key,value.Text.Length==0?MetadataEditAction.Remove:MetadataEditAction.Set,value.Text.Length==0?null:new TextValue(value.Text))).ToImmutableArray();SetMetadata(values,MetadataPolicy.PreserveSupported);};
                 }
                 else{var value=Label(text);value.ToolTip=text;Grid.SetColumn(value,1);row.Children.Add(value);}
                 var remove=Button("−",()=>{var values=MetadataEdits().Where(e=>e.Scope!=field.Scope||e.Key!=field.Key).Append(new(field.Scope,field.Key,MetadataEditAction.Remove,null)).ToImmutableArray();SetMetadata(values,document.Export.Metadata);RenderMetadata();});remove.IsEnabled=field.Removable;Grid.SetColumn(remove,2);row.Children.Add(remove);metadataRows.Children.Add(row);
@@ -485,10 +499,16 @@ public sealed class MediaEditorWindow : Window
     }
     private void BuildVisualizer()
     {
-        var visual=(VisualizerRecipe)document.Recipe;body.Children.Add(Label("Visualization uses the actual decoded audio."));
+        var visual=(VisualizerRecipe)document.Recipe;
         visualizationPreview=new(){Height=240,Stretch=Stretch.Uniform,Margin=new(0,0,0,16)};body.Children.Add(visualizationPreview);
         var colorFields=new List<TextBox>();
-        var mode=new ComboBox{ItemsSource=new[]{"Waveform","Spectrum","Still waveform"},SelectedIndex=(int)visual.Mode,Margin=new(0,0,0,12)};mode.SelectionChanged+=(_,_)=>{var v=(VisualizerRecipe)document.Recipe;SetDocument(document with {Recipe=v with {Mode=(VisualizerMode)mode.SelectedIndex},Export=document.Export with {FormatId=mode.SelectedIndex==2?"png":"mp4"}},"visualizer-mode");foreach(var field in colorFields)field.IsEnabled=mode.SelectedIndex!=(int)VisualizerMode.Spectrum;};body.Children.Add(mode);
+        var mode=new ComboBox{ItemsSource=new[]{"Waveform","Spectrum","Still waveform"},SelectedIndex=(int)visual.Mode,Margin=new(0,0,0,12)};mode.SelectionChanged+=(_,_)=>
+        {
+            var v=(VisualizerRecipe)document.Recipe;SetDocument(document with {Recipe=v with {Mode=(VisualizerMode)mode.SelectedIndex},Export=document.Export with {FormatId=mode.SelectedIndex==2?"png":"mp4"}},"visualizer-mode");
+            foreach(var field in colorFields)field.IsEnabled=mode.SelectedIndex!=(int)VisualizerMode.Spectrum;
+            if(invalidFields.Count>0)status.Text=mode.SelectedIndex==(int)VisualizerMode.Spectrum?"":"Enter a color such as #FF5500.";
+            UpdateAdmission();
+        };body.Children.Add(mode);
         var sizes=new List<SizeI>{new(1920,1080),new(1080,1920),new(1080,1080)};if(!sizes.Contains(visual.Size))sizes.Add(visual.Size);
         var size=new ComboBox{ItemsSource=sizes.Select(s=>$"{s.Width} × {s.Height}").ToArray(),SelectedIndex=sizes.IndexOf(visual.Size),Margin=new(0,0,0,12)};size.SelectionChanged+=(_,_)=>{var v=(VisualizerRecipe)document.Recipe;SetRecipe(v with {Size=sizes[size.SelectedIndex]},"visualizer-size");};body.Children.Add(size);
         var colors=new WrapPanel();
@@ -496,9 +516,16 @@ public sealed class MediaEditorWindow : Window
         {
             colors.Children.Add(Label(foreground?"Wave color":"Background"));var color=foreground?visual.Foreground:visual.Background;
             var field=Field($"#{color.R:X2}{color.G:X2}{color.B:X2}",foreground?"Wave color hexadecimal":"Background color hexadecimal");field.Width=100;field.IsEnabled=visual.Mode!=VisualizerMode.Spectrum;
-            field.LostKeyboardFocus+=(_,_)=>
+            field.TextChanged+=(_,_)=>
             {
-                try{var parsed=(Color)ColorConverter.ConvertFromString(field.Text);var rgba=new Rgba32(parsed.R,parsed.G,parsed.B,255);var current=(VisualizerRecipe)document.Recipe;SetRecipe(foreground?current with {Foreground=rgba}:current with {Background=rgba},"visualizer-color");}catch(FormatException){status.Text="Enter a color such as #FF5500.";apply.IsEnabled=false;}
+                try
+                {
+                    if(ColorConverter.ConvertFromString(field.Text) is not Color parsed)throw new FormatException();
+                    invalidFields.Remove(field);var rgba=new Rgba32(parsed.R,parsed.G,parsed.B,255);var current=(VisualizerRecipe)document.Recipe;
+                    SetRecipe(foreground?current with {Foreground=rgba}:current with {Background=rgba},"visualizer-color");
+                    if(invalidFields.Count==0&&status.Text=="Enter a color such as #FF5500.")status.Text="";
+                }
+                catch(Exception error)when(error is FormatException or NotSupportedException or ArgumentException){invalidFields.Add(field);status.Text="Enter a color such as #FF5500.";apply.IsEnabled=false;}
             };colorFields.Add(field);colors.Children.Add(field);
         }
         body.Children.Add(colors);
@@ -609,7 +636,7 @@ public sealed class MediaEditorWindow : Window
     private void UpdateAuditionReadout()
     {
         if(auditionReadout is null)return;var selection=AuditionRange(document);
-        auditionReadout.Text=$"Preview window {MediaRangeView.Timecode(Seconds(selection.Start))} – {MediaRangeView.Timecode(Seconds(selection.End))} · {MediaRangeView.Timecode(MediaEditorEngine.Duration(document))} total";
+        auditionReadout.Text=$"{MediaRangeView.Timecode(Seconds(selection.Start))} – {MediaRangeView.Timecode(Seconds(selection.End))} / {MediaRangeView.Timecode(MediaEditorEngine.Duration(document))}";
     }
     private async Task PlayChannelAsync(int channel)
     {
@@ -649,21 +676,29 @@ public sealed class MediaEditorWindow : Window
         if(Id=="audio.bleep"&&document.Recipe is AudioRecipe {Bleeps.IsEmpty:true}){valid=false;status.Text="Add at least one bleep range.";}
         if(Id=="video.split"&&document.Recipe is VideoRecipe {SplitAt.IsEmpty:true}){valid=false;status.Text="Add at least one split point.";}
         if(valid&&status.Text is "Add at least one bleep range." or "Add at least one split point.")status.Text="";
-        apply.IsEnabled=valid&&IsReady&&!closed&&!invalidVideoSize&&videoTrim?.IsDragging!=true;
+        apply.IsEnabled=valid&&IsReady&&!closed&&!applying&&!invalidVideoSize&&!invalidFields.Any(field=>field.IsEnabled)&&videoTrim?.IsDragging!=true;
     }
     private async Task ApplyAsync()
     {
-        if(!CommitTimes()||!apply.IsEnabled)return;apply.IsEnabled=false;documents[selected]=document;
-        foreach(var doc in documents)
+        if(applying)return;commitResizeFields?.Invoke();if(!CommitTimes()||!apply.IsEnabled)return;
+        applying=true;apply.IsEnabled=false;body.IsEnabled=false;documents[selected]=document;
+        try
         {
-            var errors=await engine.ValidateAsync(new(request.Operation,[doc.Sources[0].Path],request.InitialOptions,request.DestinationDirectory,doc),lifetime.Token);
-            if(!errors.IsEmpty){status.Text=Path.GetFileName(doc.Sources[0].Path)+": "+string.Join(" ",errors.Select(e=>e.Message));UpdateAdmission();return;}
+            var submitted=documents.ToArray();
+            foreach(var doc in submitted)
+            {
+                var errors=await engine.ValidateAsync(new(request.Operation,[doc.Sources[0].Path],request.InitialOptions,request.DestinationDirectory,doc),lifetime.Token);
+                if(!errors.IsEmpty){status.Text=Path.GetFileName(doc.Sources[0].Path)+": "+string.Join(" ",errors.Select(e=>e.Message));return;}
+            }
+            var snapshots=sources.ToImmutableArray();accepted=new(request,snapshots,[],[],snapshots.Select(s=>s.Id).ToImmutableArray(),submitted.Select(doc=>new EditorSubmissionItem(Guid.NewGuid(),[doc.Sources[0].Id],doc)).ToImmutableArray());Close();
         }
-        var snapshots=sources.ToImmutableArray();accepted=new(request,snapshots,[],[],snapshots.Select(s=>s.Id).ToImmutableArray(),documents.Select(doc=>new EditorSubmissionItem(Guid.NewGuid(),[doc.Sources[0].Id],doc)).ToImmutableArray());Close();
+        finally{applying=false;if(!closed){body.IsEnabled=true;UpdateAdmission();}}
     }
     private void KeyPressed(object sender,KeyEventArgs e)
     {
         if(e.Key==Key.Escape){if(videoTrim?.IsDragging==true)videoTrim.CancelDrag();else Close();e.Handled=true;return;}
+        if(applying){e.Handled=true;return;}
+        if(e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase || Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)return;
         if(Keyboard.Modifiers.HasFlag(ModifierKeys.Control)&&e.Key is Key.Z or Key.Y&&documents.Count>0)
         {
             bool changed=e.Key==Key.Z?histories[selected].Undo():histories[selected].Redo();if(changed){document=histories[selected].Current;documents[selected]=document;Run(()=>ShowSourceAsync(selected));}e.Handled=true;

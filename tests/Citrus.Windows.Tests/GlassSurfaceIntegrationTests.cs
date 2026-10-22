@@ -192,28 +192,24 @@ public sealed class GlassSurfaceIntegrationTests(DesktopFixture desktop)
     });
 
     [Fact]
-    public Task Compositor_fixture_changes_named_shell_state_and_preserves_stable_pale_center() => desktop.RunAsync(() =>
+    public Task Compositor_fixture_changes_named_shell_state_without_cutting_the_center_backing() => desktop.RunAsync(() =>
     {
         using var scene = new GlassOwnedScene();
         var shell = (MaterialSurface)scene.Wheel.FindName("Shell");
-        var center = ((Canvas)scene.Wheel.FindName("Presentation")).Children.OfType<System.Windows.Shapes.Ellipse>().Single();
-        var centerFill = center.Fill;
+        Assert.Empty(((Canvas)scene.Wheel.FindName("Presentation")).Children.OfType<System.Windows.Shapes.Ellipse>());
         scene.SetShellState(BackdropState.ConfiguredNativeAcrylic);
         Assert.Equal(BackdropState.ConfiguredNativeAcrylic, shell.State);
         Assert.True(((SolidColorBrush)shell.EffectiveTint).Color.A < 255);
-        Assert.Same(centerFill, center.Fill);
-        Assert.Equal(1, center.Fill.Opacity);
-        Assert.Same(WheelForegroundStyle.Hub, center.Fill);
-        Assert.Equal(240, Assert.IsType<SolidColorBrush>(center.Fill).Color.A);
+        Assert.Null(shell.Clip);
         scene.SetShellState(BackdropState.Solid);
         Assert.Equal(BackdropState.Solid, shell.State);
         Assert.Equal(255, ((SolidColorBrush)shell.EffectiveTint).Color.A);
-        Assert.Same(centerFill, center.Fill);
+        Assert.Null(shell.Clip);
         return Task.CompletedTask;
     });
 
     [Fact]
-    public Task Hub_metadata_uses_the_pale_disc_without_a_second_pill() => desktop.RunAsync(() =>
+    public Task Hub_metadata_retains_its_label_without_a_center_disc_or_second_pill() => desktop.RunAsync(() =>
     {
         var wheel = new WheelWindow(new OperationCatalog([]));
         try
@@ -221,11 +217,9 @@ public sealed class GlassSurfaceIntegrationTests(DesktopFixture desktop)
             var plate = (Border)wheel.FindName("CaptionPlate");
             Assert.InRange(Canvas.GetLeft(plate), 124, 144);
             Assert.True(Canvas.GetLeft(plate) + plate.Width <= 244);
-            Assert.Equal(0, ((SolidColorBrush)plate.Background).Color.A);
-            var hub = ((Canvas)wheel.FindName("Presentation")).Children.OfType<System.Windows.Shapes.Ellipse>().Single();
-            Assert.Equal(1, hub.Fill.Opacity);
-            Assert.Same(WheelForegroundStyle.Hub, hub.Fill);
-            Assert.Equal(240, ((SolidColorBrush)hub.Fill).Color.A);
+            Assert.InRange(((SolidColorBrush)plate.Background).Color.A, 240, 255);
+            Assert.Empty(((Canvas)wheel.FindName("Presentation")).Children.OfType<System.Windows.Shapes.Ellipse>());
+            Assert.Null(((MaterialSurface)wheel.FindName("Shell")).Clip);
         }
         finally { wheel.Close(); }
         return Task.CompletedTask;

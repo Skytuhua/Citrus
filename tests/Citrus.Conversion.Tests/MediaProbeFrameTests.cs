@@ -43,6 +43,24 @@ public sealed class MediaProbeFrameTests : IAsyncLifetime
         Assert.Equal(inspected, probe.TimestampScanCount);
     }
     [Fact]
+    public async Task Cached_seeks_reuse_verified_locked_source_without_hashing_its_bytes_again()
+    {
+        if(!OperatingSystem.IsWindows())return;
+        long verified=probe.SourceVerificationBytes;
+        Assert.Equal(source.Length*2,verified);
+        var doc=Document(Clip(new(0,1),new(1,2)));
+        for(int generation=1;generation<=2;generation++)
+        {
+            var poster=await new MediaGraphCompiler(probe,capabilities).CompilePosterAsync(doc,new(new(11,50),new(1,2)),false,new(16,8),generation,default);
+            var frame=await new MediaBinaryDecoder(process).DecodeFrameAsync(poster.Graph,default);
+            Assert.Equal(909000,frame.FrameIdentity!.RawPts);
+        }
+        Assert.Equal(verified,probe.SourceVerificationBytes);
+        string staged=probe.StagedSources[source.Id];
+        Assert.Throws<IOException>(()=>File.Delete(staged));
+        Assert.Throws<IOException>(()=>File.WriteAllBytes(staged,[0]));
+    }
+    [Fact]
     public async Task Paused_poster_uses_exact_vfr_predecessor_without_compiling_an_audio_stream()
     {
         long inspected = probe.TimestampScanCount;
@@ -61,8 +79,22 @@ public sealed class MediaProbeFrameTests : IAsyncLifetime
     [Fact]
     public async Task Cached_poster_still_rejects_changed_private_source_bytes()
     {
+        if(OperatingSystem.IsWindows())
+        {
+            Assert.Throws<IOException>(()=>File.WriteAllBytes(probe.StagedSources[source.Id],new byte[checked((int)source.Length)]));
+            Assert.NotEmpty(await probe.PrepareFrameAtAsync(source.Id,info.Video[0].Index,new(new(0,1),new(1,2)),new(11,50),default));
+            return;
+        }
         File.WriteAllBytes(probe.StagedSources[source.Id],new byte[checked((int)source.Length)]);
         await Assert.ThrowsAsync<IOException>(()=>probe.PrepareFrameAtAsync(source.Id,info.Video[0].Index,new(new(0,1),new(1,2)),new(11,50),default));
+    }
+    [Fact]
+    public void Compiler_rejects_a_copy_outside_the_verified_session_binding()
+    {
+        string copy=Path.Combine(directory,"alternate.mp4");
+        File.Copy(probe.StagedSources[source.Id],copy);
+        var alternate=probe.StagedSources.SetItem(source.Id,copy);
+        Assert.Throws<ArgumentException>(()=>new MediaGraphCompiler(probe,capabilities).Compile(Document(Clip(new(0,1),new(1,2))),RenderPurpose.Preview,new(1,new(16,8),new(0,1),null,null),alternate));
     }
     [Fact]
     public async Task Adjacent_frame_navigation_uses_actual_vfr_neighbors_and_clip_edges()
@@ -143,6 +175,12 @@ public sealed class MediaProbeFrameTests : IAsyncLifetime
         await Assert.ThrowsAsync<ArgumentException>(()=>probe.ReadFrameTimesAsync(Guid.NewGuid(),0,new(new(0,1),new(1,1)),2,default));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(()=>probe.ReadFrameTimesAsync(source.Id,0,new(new(0,1),new(1,1)),4097,default));
         var plan = new MediaGraphCompiler(probe,capabilities).Compile(Document(Clip(new(0,1),new(1,2))),RenderPurpose.Preview,new(1,new(16,8),new(0,1),null,null),probe.StagedSources);
+        if(OperatingSystem.IsWindows())
+        {
+            Assert.Throws<IOException>(()=>File.WriteAllBytes(probe.StagedSources[source.Id],new byte[checked((int)source.Length)]));
+            await new MediaBinaryDecoder(process).DecodeFrameAsync(plan,default);
+            return;
+        }
         File.WriteAllBytes(probe.StagedSources[source.Id],new byte[checked((int)source.Length)]);
         await Assert.ThrowsAsync<IOException>(()=>new MediaBinaryDecoder(process).DecodeFrameAsync(plan,default));
     }

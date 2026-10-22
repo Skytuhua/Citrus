@@ -206,7 +206,9 @@ public sealed class GlassCompositorTests(DesktopFixture desktop)
                 var start = Surface.PointToScreen(new Point(40, 8));
                 var end = Surface.PointToScreen(new Point(Surface.ActualWidth - 40, 16));
                 region = new Rect(start.X - Scene.Bounds.Left, start.Y - Scene.Bounds.Top, end.X - start.X, end.Y - start.Y);
-                Assert.Equal(0, BackdropNativeMethods.GetWindowLongPtr(Scene.CaptureTargetHandle, -20).ToInt64() & BackdropNativeMethods.WsExLayered);
+                // MaterialSurface chrome uses per-pixel alpha; its native backdrop deliberately falls back to solid.
+                Assert.True(window.AllowsTransparency);
+                Assert.NotEqual(0, BackdropNativeMethods.GetWindowLongPtr(Scene.CaptureTargetHandle, -20).ToInt64() & BackdropNativeMethods.WsExLayered);
             }
         }
         public bool InRegion(int x, int y)

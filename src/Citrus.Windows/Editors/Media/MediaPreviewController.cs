@@ -450,7 +450,7 @@ public sealed class MediaPlaybackPreparation(MediaProcess process, ISourceSnapsh
             ImmutableArray<WaveformBucket> waveform = [];
             if (plan.Audio is { } audio)
             {
-                if (audio.Channels is > 2) throw new NotSupportedException("Native preview currently supports mono/stereo output; choose a supported channel layout.");
+                if (audio.Channels is > 2) throw new NotSupportedException("Preview supports mono or stereo audio. Choose a supported channel layout.");
                 pcm = await new MediaBinaryDecoder(process).DecodeAudioAsync(audio, Path.Combine(directory, "audition.pcm"), ct).ConfigureAwait(false);
                 waveform = await new WaveformService().BuildAsync(pcm, 1024, ct).ConfigureAwait(false);
             }

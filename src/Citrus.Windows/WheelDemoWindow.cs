@@ -47,8 +47,7 @@ public sealed class WheelDemoWindow : Window
         SetResourceReference(BackgroundProperty, "WindowBackground"); SetResourceReference(ForegroundProperty, "PrimaryText");
         SetResourceReference(FontFamilyProperty, "AppFont"); SetResourceReference(FontSizeProperty, "BodySize");
         var panel = new StackPanel { Margin = new(16, 12, 16, 16) };
-        panel.Children.Add(new TextBlock { Text = "Glide to a format", FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0,0,0,4) });
-        panel.Children.Add(new TextBlock { Text = "Sample only · no files are changed", HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0,0,0,8) });
+        panel.Children.Add(new TextBlock { Text = "Sample · choose a format", HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0,0,0,8) });
         var canvas = new Canvas { Name = "DemoWheelCanvas", Width = WheelGeometry.Width, Height = WheelGeometry.Height, Background = System.Windows.Media.Brushes.Transparent, Focusable = true };
         wheelCanvas = canvas;
         var shell = new Citrus.Windows.Presentation.MaterialSurface { Role = Citrus.Windows.Presentation.MaterialRole.WheelShell, Width = 352, Height = 352, IsHitTestVisible = false };
@@ -61,16 +60,7 @@ public sealed class WheelDemoWindow : Window
         var petals = operations.Select((operation, index) => new WheelPetal(operation, index, operations.Length)).ToArray();
         wheelPetals = petals;
         foreach (var petal in petals) canvas.Children.Add(petal);
-        var hub = new System.Windows.Shapes.Ellipse { Width = 120, Height = 120, IsHitTestVisible = false };
-        hub.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "WheelHubBackground");
-        Canvas.SetLeft(hub, 124); Canvas.SetTop(hub, 124); canvas.Children.Add(hub);
-        var preview = new Border { Width = 48, Height = 40, CornerRadius = new(8), IsHitTestVisible = false };
-        preview.SetResourceReference(Border.BackgroundProperty, "InsetBackground");
-        var glyph = new System.Windows.Shapes.Path { Data = (System.Windows.Media.Geometry)Application.Current.FindResource("Icon.File"), Width = 24, Height = 30,
-            Stretch = System.Windows.Media.Stretch.Uniform, StrokeThickness = 1.5 };
-        glyph.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "SecondaryText"); preview.Child = glyph;
-        Canvas.SetLeft(preview, 160); Canvas.SetTop(preview, 143); canvas.Children.Add(preview);
-        var center = new TextBlock { Text = "2.2 MB", Width = 108, TextAlignment = TextAlignment.Center };
+        var center = new TextBlock { Text = "2.2 MB", Width = WheelPresentationMetrics.HubCapsuleWidth, TextAlignment = TextAlignment.Center };
         center.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
         center.VerticalAlignment = VerticalAlignment.Center;
         var centerPlate = new Border { Width = WheelPresentationMetrics.HubCapsuleWidth, Height = 48, CornerRadius = new(24), Child = center };
@@ -92,15 +82,9 @@ public sealed class WheelDemoWindow : Window
             center.Text = selected < 0 ? "2.2 MB" : operations[selected].Label;
             Citrus.Windows.Presentation.WheelTitleTypography.ApplyHub(center, 1);
             if (selected < 0) { center.FontSize = 16.5; center.FontWeight = FontWeights.Normal; }
-            centerPlate.Width = center.Width = selected < 0 ? 108 : WheelPresentationMetrics.HubCapsuleWidth;
-            centerPlate.Height = selected < 0 ? 28 : 48;
-            if (selected < 0) centerPlate.Background = System.Windows.Media.Brushes.Transparent;
-            else centerPlate.SetResourceReference(Border.BackgroundProperty, "CapsuleBackground");
+            centerPlate.SetResourceReference(Border.BackgroundProperty, "CapsuleBackground");
             if (selected >= 0 && !SystemParameters.HighContrast) centerPlate.SetResourceReference(EffectProperty, "WheelCaptionShadow");
             else centerPlate.Effect = null;
-            Canvas.SetLeft(centerPlate, selected < 0 ? 130 : (WheelGeometry.Width-WheelPresentationMetrics.HubCapsuleWidth)/2);
-            Canvas.SetTop(centerPlate, selected < 0 ? 191 : 160);
-            preview.Visibility = selected < 0 ? Visibility.Visible : Visibility.Hidden;
         }
         Select(0);
         canvas.MouseMove += (_, e) =>
@@ -131,7 +115,7 @@ public sealed class WheelDemoWindow : Window
             if (ReferenceEquals(e.OriginalSource, this)) rightCancelPending = false;
         };
         canvas.KeyDown += (_, e) => { if (e.Key is Key.Right or Key.Down) { Select((active + 1) % petals.Length); e.Handled = true; } else if (e.Key is Key.Left or Key.Up) { Select((active + petals.Length - 1) % petals.Length); e.Handled = true; } };
-        System.Windows.Automation.AutomationProperties.SetName(canvas, "Safe wheel demonstration. Use arrow keys to explore sample choices.");
+        System.Windows.Automation.AutomationProperties.SetName(canvas, "Wheel demonstration. Use arrow keys to choose a format.");
         panel.Children.Add(new Viewbox { Width = WheelPresentationMetrics.Width, Height = WheelPresentationMetrics.Height,
             Stretch = Stretch.Uniform, Child = canvas, HorizontalAlignment = HorizontalAlignment.Center });
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };

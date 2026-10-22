@@ -91,14 +91,14 @@ public sealed class AnnotationInteractionTests(DesktopFixture desktop)
             Descendants(window).OfType<Button>().Single(b=>b.Content is TextBlock text&&text.Text=="Apply text").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Ready(60);Assert.Equal(layer.Id,overlay.SelectedId);
             // Font size and leading are independent: two lines retain 20px leading plus 10px glyph metrics.
-            var size=Field("Font size · output pixels");size.Text="10";SendKey(size,window,Key.Enter);await Ready(30);
-            var wrap=Field("Local wrap width · output pixels");wrap.Text="200";SendKey(wrap,window,Key.Enter);await Ready(10);
+            var size=Field("Font size · px");size.Text="10";SendKey(size,window,Key.Enter);await Ready(30);
+            var wrap=Field("Wrap width · px");wrap.Text="200";SendKey(wrap,window,Key.Enter);await Ready(10);
             size.Text="20";SendKey(size,window,Key.Enter);await Ready(40);
             var rotation=Field("Rotation · degrees");rotation.Text="90";SendKey(rotation,window,Key.Enter);
-            var before=overlay.SelectedBounds()!.Value;var width=Field("Width · output pixels");width.Text="80";SendKey(width,window,Key.Enter);
+            var before=overlay.SelectedBounds()!.Value;var width=Field("Width · px");width.Text="80";SendKey(width,window,Key.Enter);
             for(int i=0;i<150&&overlay.SelectedBounds() is null;i++)await Task.Delay(20);
             var after=overlay.SelectedBounds()!.Value;Assert.Equal(before.X,after.X,5);Assert.Equal(before.Y,after.Y,5);Assert.Equal(80,after.Width,5);Assert.Equal(400,after.Height,5);
-            Assert.Equal("400",Field("Local wrap width · output pixels").Text);Assert.Equal("40",Field("Font size · output pixels").Text);
+            Assert.Equal("400",Field("Wrap width · px").Text);Assert.Equal("40",Field("Font size · px").Text);
             Click(window,"Save");
             TextBox Field(string name)=>Descendants(window).OfType<TextBox>().Single(t=>AutomationProperties.GetName(t)==name);
             async Task Ready(double height)

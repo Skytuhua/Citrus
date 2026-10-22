@@ -168,7 +168,7 @@ public sealed partial class MediaEditorEngine(MediaProcess process,MediaCapabili
             var audition=doc with {Recipe=audio with {Loudness=null},Export=doc.Export with {Compression=new QualityGoal(85)}};
             var plan=compiler.Compile(audition,RenderPurpose.Preview,new(0,new(64,64),null,null,null),probe.StagedSources);
             string pcmPath=Path.Combine(directory,"edited.pcm");
-            var pcm=await new MediaBinaryDecoder(process).DecodeAudioAsync(plan,pcmPath,ct).ConfigureAwait(false);
+            var pcm=await new MediaBinaryDecoder(process).DecodeExportAudioAsync(plan,pcmPath,ct).ConfigureAwait(false);
             MediaLoudnessMeasurement? before=null;
             string[] pcmInput=["-f","s16le","-ar",N(pcm.SampleRate),"-ac",N(pcm.Channels),"-i",pcm.Path];
             if(audio.Loudness is {} loudness)before=await MediaLoudnessMeasurement.MeasureAsync(process,pcmInput,loudness,ct).ConfigureAwait(false);
@@ -266,7 +266,7 @@ public sealed partial class MediaEditorEngine(MediaProcess process,MediaCapabili
         var audioDoc=doc with {Recipe=visual.Audio,Export=doc.Export with {FormatId="wav",Compression=new QualityGoal(85)}};
         var graph=new MediaGraphCompiler(probe,capabilities).Compile(audioDoc,RenderPurpose.Preview,new(0,new(32,32),null,null,null),probe.StagedSources);
         string pcm=Path.Combine(Path.GetDirectoryName(payload)!,"visualizer.pcm");
-        await new MediaBinaryDecoder(process).DecodeAudioAsync(graph,pcm,ct).ConfigureAwait(false);
+        await new MediaBinaryDecoder(process).DecodeExportAudioAsync(graph,pcm,ct).ConfigureAwait(false);
         string fg=$"0x{visual.Foreground.R:X2}{visual.Foreground.G:X2}{visual.Foreground.B:X2}",bg=$"0x{visual.Background.R:X2}{visual.Background.G:X2}{visual.Background.B:X2}";
         string filter=visual.Mode switch {VisualizerMode.Spectrum=>$"showspectrum=s={visual.Size.Width}x{visual.Size.Height}:fps={visual.FramesPerSecond}:legend=disabled",VisualizerMode.StillWaveform=>$"showwavespic=s={visual.Size.Width}x{visual.Size.Height}:colors={fg}",_=>$"showwaves=s={visual.Size.Width}x{visual.Size.Height}:r={visual.FramesPerSecond}:mode=line:colors={fg}"};
         string output=Path.Combine(payload,"visualization."+doc.Export.FormatId);

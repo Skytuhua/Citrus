@@ -82,7 +82,7 @@ public static class ImageLayerGeometry
         var old=Bounds(a,textBounds);
         if(a.Geometry is TextGeometry text)
         {
-            if(textBounds is null)throw new ArgumentException("Preparing exact text layout. Resize when its handles appear.");
+            if(textBounds is null)throw new ArgumentException("Wait for text handles before resizing.");
             double scale=ProportionalScale(old,next);var font=a.Style.Font!;
             if(font.SizePixels*scale is <1 or >16384 || font.LineHeight*scale is <1 or >16384 || text.WrapWidth*scale is <1 or >16384)
                 throw new ArgumentException("Text scaling must keep font size, leading and wrap width between 1 and 16384 pixels.");

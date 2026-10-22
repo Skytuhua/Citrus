@@ -34,14 +34,28 @@ public sealed record AudioPcmInfo(string Path, int SampleRate, int Channels, lon
 /// <summary>Sample-frame interval [FirstSample, LastSample), aggregated over all channels.</summary>
 public sealed record WaveformBucket(float Minimum, float Maximum, long FirstSample, long LastSample);
 
-internal sealed record VerifiedMediaSource(SourceSnapshot Snapshot, string Path)
+internal sealed class VerifiedMediaSource(SourceSnapshot snapshot,string path,Action<long>? verified=null,bool lockForSession=false) : IDisposable
 {
+    public SourceSnapshot Snapshot { get; }=snapshot;
+    public string Path { get; }=path;
+    private FileStream? readLock;
     public async Task VerifyAsync(CancellationToken ct)
     {
-        await using var file = new FileStream(Path,FileMode.Open,FileAccess.Read,FileShare.Read,65536,FileOptions.Asynchronous|FileOptions.SequentialScan);
-        if (file.Length != Snapshot.Length || !Convert.ToHexString(await SHA256.HashDataAsync(file,ct).ConfigureAwait(false)).Equals(Snapshot.Sha256,StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Source content changed. Reload the file.");
+        ct.ThrowIfCancellationRequested();
+        if(readLock is not null)return;
+        FileStream? file=new(Path,FileMode.Open,FileAccess.Read,FileShare.Read,65536,FileOptions.Asynchronous|FileOptions.SequentialScan);
+        try
+        {
+            if(file.Length!=Snapshot.Length)throw new IOException("Source content changed. Reload the file.");
+            string hash=Convert.ToHexString(await SHA256.HashDataAsync(file,ct).ConfigureAwait(false));
+            verified?.Invoke(file.Length);
+            if(!hash.Equals(Snapshot.Sha256,StringComparison.OrdinalIgnoreCase))throw new IOException("Source content changed. Reload the file.");
+            // Windows sharing denies writes and deletion for the entire verified session.
+            if(lockForSession&&OperatingSystem.IsWindows()){readLock=file;file=null;}
+        }
+        finally{if(file is not null)await file.DisposeAsync().ConfigureAwait(false);}
     }
+    public void Dispose(){readLock?.Dispose();readLock=null;}
 }
 
 internal static class MediaTime

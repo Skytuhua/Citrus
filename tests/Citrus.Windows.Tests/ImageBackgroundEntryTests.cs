@@ -53,7 +53,7 @@ public sealed class ImageBackgroundEntryTests(DesktopFixture desktop)
             {
                 Assert.Null(((ImageRecipe)window.Model!.Selected!.Draft!.Recipe).Canvas);
                 var button=(Button)window.FindName("ExportButton");Assert.False(button.IsEnabled);
-                Assert.Contains(Descendants(window).OfType<TextBlock>(),text=>text.Text.Contains("No background is applied",StringComparison.Ordinal));
+                Assert.Contains(Descendants(window).OfType<Button>(),button=>Equals(button.Content,"Add background")&&button.IsEnabled);
                 button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Assert.True(window.IsVisible);
                 Assert.Contains("background",((TextBlock)window.FindName("ErrorText")).Text,StringComparison.OrdinalIgnoreCase);
             }

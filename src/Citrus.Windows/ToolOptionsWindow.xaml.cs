@@ -29,6 +29,7 @@ public partial class ToolOptionsWindow : Window
         Heading.Text = draft.Operation.Label;
         InputSummary.Text = $"{draft.Inputs.Count} included file(s) · {draft.Operation.OutputExtension?.TrimStart('.').ToUpperInvariant() ?? "new"} output";
         OperationDescription.Text = OperationCard.Describe(draft.Operation);
+        OperationDescription.Visibility = string.IsNullOrEmpty(OperationDescription.Text) ? Visibility.Collapsed : Visibility.Visible;
         Loaded += (_, _) => { if (fields.Values.FirstOrDefault() is { } first) first.Focus(); else CreateButton.Focus(); };
         Title = draft.Operation.Label + " · Citrus";
         CreateButton.Content = draft.Operation.IsGroup ? "Create group copy" : "Create copies";
@@ -63,7 +64,7 @@ public partial class ToolOptionsWindow : Window
         if (id == "audio.normalize") Field("Lufs", "Normalization · -70 to -5 LUFS", Number(options.NormalizeLufs));
         if (id is "pdf.split" or "pdf.images" or "pdf.text") Field("Pages", "Pages · blank = all; example 1,3-5", options.PageSelection ?? "");
         InspectionSummary.Text = string.Join("\n", draft.Inspections.Select(i => Path.GetFileName(i.Path) + ": " +
-            (i.Error is not null ? i.Error + " This item will be reported as failed." : i.PageCount is int pages ? $"{pages} pages" : $"{i.DurationSeconds:0.###} seconds")));
+            (i.Error is not null ? "Failed: " + i.Error : i.PageCount is int pages ? $"{pages} pages" : $"{i.DurationSeconds:0.###} seconds")));
         UpdateDestination();
         (Application.Current as App)?.AttachPresentation(this, Chrome);
     }
@@ -98,7 +99,7 @@ public partial class ToolOptionsWindow : Window
     }
     private void UpdateDestination() => DestinationText.Text = destination ??
         (draft.Operation.IsGroup ? BatchRequestBuilder.RequiresDestination(ordered)
-            ? "Inputs span multiple folders. Choose a destination before creating the group."
+            ? "Files are in different folders. Choose a destination."
             : Path.GetDirectoryName(ordered[0]) : "Beside each original");
 
     private void ChooseFolder(object sender, RoutedEventArgs e)

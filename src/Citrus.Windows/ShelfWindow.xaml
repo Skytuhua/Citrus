@@ -5,7 +5,7 @@
  <ScrollViewer x:Name="ShelfScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
   <StackPanel Margin="18">
 
-   <TextBlock Text="Drag files out, or select and copy them." TextWrapping="Wrap" Margin="0,6,0,10"/>
+   <TextBlock Text="Drag files out." TextWrapping="Wrap" Margin="0,6,0,10"/>
    <ListBox x:Name="References" MinHeight="120" MaxHeight="240" SelectionMode="Extended" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Shelf file references" PreviewMouseLeftButtonDown="DragStarted" MouseMove="DragMoved" KeyDown="ShelfKeyDown">
     <ListBox.ItemTemplate><DataTemplate><DockPanel Margin="4,6"><Path Data="{StaticResource Icon.File}" Width="22" Height="26" Stretch="Uniform" Stroke="{DynamicResource SecondaryText}" StrokeThickness="1.3" Margin="0,0,12,0"/><TextBlock Text="{Binding}" ToolTip="{Binding}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/></DockPanel></DataTemplate></ListBox.ItemTemplate>
    </ListBox>

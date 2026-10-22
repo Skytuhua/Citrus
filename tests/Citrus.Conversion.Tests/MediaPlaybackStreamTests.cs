@@ -135,6 +135,12 @@ public sealed class MediaPlaybackStreamTests : IAsyncLifetime
     public async Task Changed_stage_rejected_before_any_pixels_are_published()
     {
         var plan = await Plan(Document(Clip()), new(new(0, 1), new(1, 2)));
+        if(OperatingSystem.IsWindows())
+        {
+            Assert.Throws<IOException>(()=>File.WriteAllBytes(probe.StagedSources[source.Id],new byte[checked((int)source.Length)]));
+            Assert.NotEmpty(await Decode(plan));
+            return;
+        }
         File.WriteAllBytes(probe.StagedSources[source.Id], new byte[checked((int)source.Length)]);
         int calls = 0;
         await Assert.ThrowsAsync<IOException>(() => new MediaPlaybackDecoder(process).StreamVideoAsync(plan, (_, _) => { calls++; return ValueTask.CompletedTask; }, default));

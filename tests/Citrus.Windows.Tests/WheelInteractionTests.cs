@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Citrus.Core;
 using Citrus.Windows.Presentation;
 using Forms = System.Windows.Forms;
@@ -43,7 +42,7 @@ public sealed class WheelInteractionTests(DesktopFixture desktop)
     });
 
     [Fact]
-    public Task Petal_gap_keeps_target_and_late_thumbnail_hidden_until_center_cancel() => desktop.RunAsync(async () =>
+    public Task Petal_gap_keeps_the_capsule_target_without_decoding_a_thumbnail_until_center_cancel() => desktop.RunAsync(async () =>
     {
         var preview = new DeferredPreview();
         using var fixture = new WheelFixture(preview, new CountingEngine(3));
@@ -54,13 +53,16 @@ public sealed class WheelInteractionTests(DesktopFixture desktop)
         Assert.Equal(-1, WheelGeometry.HitTest(gap.X,gap.Y,3));
         Assert.Equal(DragDropEffects.Copy, fixture.Raise(DragDrop.PreviewDragOverEvent,fixture.Data,new Point(gap.X,gap.Y)).Effects);
         Assert.Equal(title,((TextBlock)fixture.Wheel.FindName("Caption")).Text);
-        preview.Requests.Single().Completion.SetResult(BitmapSource.Create(1,1,96,96,PixelFormats.Bgra32,null,new byte[] {0,0,0,255},4));
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-        var image = (System.Windows.Controls.Image)fixture.Wheel.FindName("Preview");
-        Assert.NotNull(image.Source); Assert.Equal(Visibility.Hidden,image.Visibility);
+        Assert.Empty(preview.Requests);
+        foreach (string name in new[] { "Preview", "FileGlyph", "ThumbnailFrame", "CountBadge" }) Assert.Null(fixture.Wheel.FindName(name));
         Assert.Equal(title,((TextBlock)fixture.Wheel.FindName("Caption")).Text);
         fixture.Raise(DragDrop.PreviewDragOverEvent,fixture.Data,new Point(184,184));
-        Assert.Equal(Visibility.Visible,image.Visibility);
+        var capsule = (Border)fixture.Wheel.FindName("CaptionPlate");
+        Assert.Equal(160, Canvas.GetTop(capsule));
+        Assert.Equal(48, capsule.Height);
+        Assert.Equal(WheelPresentationMetrics.HubCapsuleWidth, capsule.Width);
+        Assert.Empty(preview.Requests);
         Assert.Null(fixture.Wheel.FindName("ActionDescription"));
         Assert.Equal(-1, typeof(WheelWindow).GetField("selected", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(fixture.Wheel));
     });
@@ -471,25 +473,23 @@ public sealed class WheelInteractionTests(DesktopFixture desktop)
     });
 
     [Fact]
-    public Task Canceled_preview_cannot_replace_a_new_drag_even_if_decoder_returns_late() => desktop.RunAsync(async () =>
+    public Task Reopening_for_a_new_drag_keeps_only_the_capsule_and_never_requests_thumbnail_decoding() => desktop.RunAsync(async () =>
     {
         var previews = new DeferredPreview();
         using var fixture = new WheelFixture(previews);
         await fixture.Enter();
-        var first = previews.Requests[0];
+        Assert.Empty(previews.Requests);
         fixture.Wheel.Dismiss();
-        Assert.True(first.Token.IsCancellationRequested);
         fixture.Data.Paths = [fixture.C];
         await fixture.Enter();
-        var second = previews.Requests[1];
-        var current = BitmapSource.Create(1,1,96,96,PixelFormats.Bgra32,null,new byte[] { 0,0,255,255 },4);
-        current.Freeze();
-        second.Completion.SetResult(current);
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-        Assert.Same(current,((System.Windows.Controls.Image)fixture.Wheel.FindName("Preview")).Source);
-        first.Completion.SetResult(null);
-        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-        Assert.Same(current,((System.Windows.Controls.Image)fixture.Wheel.FindName("Preview")).Source);
+        Assert.Empty(previews.Requests);
+        Assert.Equal(Path.GetFileName(fixture.C), ((TextBlock)fixture.Wheel.FindName("Badge")).Text);
+        foreach (string name in new[] { "Preview", "FileGlyph", "ThumbnailFrame", "CountBadge" }) Assert.Null(fixture.Wheel.FindName(name));
+        var capsule = (Border)fixture.Wheel.FindName("CaptionPlate");
+        Assert.Equal(160, Canvas.GetTop(capsule));
+        Assert.Equal(48, capsule.Height);
+        Assert.Equal(24, capsule.CornerRadius.TopLeft);
     });
 
     [Theory]

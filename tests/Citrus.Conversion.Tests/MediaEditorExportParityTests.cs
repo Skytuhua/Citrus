@@ -32,6 +32,31 @@ public sealed class MediaEditorExportParityTests : IAsyncLifetime
     private Task<ConversionResult> Export(string id,string path,EditorDocument document)=>engine.ExecuteAsync(new(engine.Operations.Single(o=>o.Id==id),[path],new(),root,document),null,default);
 
     [Fact]
+    public async Task Audio_export_streams_beyond_the_preview_PCM_cache_limit()
+    {
+        string input=Path.Combine(root,"long.flac");
+        string silence=Path.Combine(root,"silence.wav");
+        MediaFixture.WriteWave(silence,new short[48000]);
+        const int seconds=2800;
+        await process.RunAsync(["-stream_loop","-1",..MediaProcess.InputArguments(silence),"-t",seconds.ToString(System.Globalization.CultureInfo.InvariantCulture),"-ac","2","-c:a","flac",input],null,default);
+        var doc=await Document("audio.compress",input);
+        doc=doc with {Export=doc.Export with {FormatId="flac",Compression=new QualityGoal(85)}};
+        Assert.True((long)seconds*48000*2*2>MediaBinaryDecoder.MaximumPcmBytes);
+        await using(var preview=new MediaProbe(process,engine.Sources,Path.Combine(root,"long-preview")))
+        {
+            await preview.InspectAsync(doc.Sources[0],default);
+            var plan=new MediaGraphCompiler(preview,engine.Capabilities).Compile(doc,RenderPurpose.Preview,new(1,new(32,32),null,null,null),preview.StagedSources);
+            string pcm=Path.Combine(root,"preview.pcm");
+            await Assert.ThrowsAsync<NotSupportedException>(()=>new MediaBinaryDecoder(process).DecodeAudioAsync(plan,pcm,default));
+            Assert.False(File.Exists(pcm));
+        }
+        string output=Assert.Single((await Export("audio.compress",input,doc)).Outputs);
+        var info=await process.ProbeAsync(output,default);
+        Assert.True(info.HasAudio);
+        Assert.InRange(info.DurationSeconds,seconds-.01,seconds+.01);
+    }
+
+    [Fact]
     public async Task Mute_really_removes_audio_and_preserves_geometry()
     {
         var doc=await Document("video.mute",video);

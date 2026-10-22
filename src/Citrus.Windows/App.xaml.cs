@@ -63,6 +63,7 @@ public partial class App : Application
     private readonly CancellationTokenSource lifetime = new();
     private readonly List<ConversionJob> jobs = [];
     private readonly HashSet<ConversionJob> notified = [];
+    private readonly JobProgressDispatcher jobUpdates;
     private bool preparing, updatingGestures;
     public bool IsQuitting { get; private set; }
     internal event Action? ResidentReady;
@@ -74,7 +75,11 @@ public partial class App : Application
     internal static ResidentOptions CreateStartupOptions(IReadOnlyList<string> arguments) => arguments.Contains("--development", StringComparer.Ordinal)
         ? new ResidentOptions(SettingsRoot: Path.Combine(AppContext.BaseDirectory, ".development"), InstanceSuffix: "e788249bd7134c4ba771b7ae038bda83")
         : new ResidentOptions();
-    internal App(ResidentOptions options) { this.options = options; settingsStore = new(options.SettingsRoot); }
+    internal App(ResidentOptions options)
+    {
+        this.options = options; settingsStore = new(options.SettingsRoot);
+        jobUpdates = new(action => Dispatcher.BeginInvoke(DispatcherPriority.Background, action), RefreshChangedJobs);
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -103,7 +108,7 @@ public partial class App : Application
             actions = options.NativeActions ?? new(floatPaths: FloatPaths, cancellationToken: lifetime.Token);
             using var iconStream = GetResourceStream(new Uri("pack://application:,,,/Citrus.Windows;component/Resources/Citrus.ico")).Stream;
             trayIcon = new System.Drawing.Icon(iconStream);
-            tray = new Forms.NotifyIcon { Icon = trayIcon, Text = "Citrus · local files", Visible = true };
+            tray = new Forms.NotifyIcon { Icon = trayIcon, Text = "Citrus", Visible = true };
             var menu = new Forms.ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true, Padding = new Forms.Padding(5) };
             menu.Items.Add("Open Citrus", null, (_, _) => OpenHome());
             menu.Items.Add("Settings…", null, (_, _) => OpenSettings());
@@ -307,7 +312,7 @@ public partial class App : Application
         if (job.Request.Editor is null) { await SubmitAsync(new(job.Request.Operation, job.Request.Inputs), job.Request.Options, destination, SubmissionOrigin.Retry); return; }
         if (IsQuitting || updateAdmissionClosed || home is null) return;
         if (preparing) { home.Report("Finish the current editor before retrying."); return; }
-        if (editorWorkflows?.Contains(job.Request.Operation.Id) != true) { home.Report("The editor renderer is unavailable. Restore the bundled tools before retrying this recipe."); return; }
+        if (editorWorkflows?.Contains(job.Request.Operation.Id) != true) { home.Report("Editor unavailable. Restore the required tools and retry."); return; }
         preparing = true; home.SetBusy(true);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); activeAction = completed.Task;
         try
@@ -315,14 +320,14 @@ public partial class App : Application
             var retried = await editorWorkflows.RetryAsync(job.Request, destination, lifetime.Token);
             TrackSubmitted([retried], SubmissionOrigin.Retry);
         }
-        catch (OperationCanceledException) { home.Report("Retry canceled. No new work was submitted."); }
-        catch (Exception error) { home.AddSubmissionFailure("Could not retry the frozen recipe: " + error.Message, () => RetryAsync(job, destination)); }
+        catch (OperationCanceledException) { home.Report("Retry canceled."); }
+        catch (Exception error) { home.AddSubmissionFailure("Could not retry: " + error.Message, () => RetryAsync(job, destination)); }
         finally { preparing = false; home.SetBusy(false); completed.TrySetResult(); }
     }
     internal async Task SubmitAsync(OperationDrop drop, OperationOptions? options = null, string? destination = null, SubmissionOrigin origin = SubmissionOrigin.Home)
     {
         if (IsQuitting || updateAdmissionClosed || submissions is null || home is null) return;
-        if (preparing) { ReportSubmission("Finish the current action or options dialog before starting another submission.", origin); return; }
+        if (preparing) { ReportSubmission("Finish the current task first.", origin); return; }
         drop = new(drop.Operation, Array.AsReadOnly(drop.Paths.ToArray())); // Freeze the actual incoming payload before any await/modal pump.
         preparing = true;
         home.SetBusy(true);
@@ -339,7 +344,7 @@ public partial class App : Application
                 await actions!.ExecuteAsync(drop.Operation.Id, drop.Paths);
                 home.RefreshSelection();
                 ReportSubmission(drop.Operation.Id == "action.move" ? "Moved to: " + string.Join("; ", actions.LastMoveDestinations) :
-                    $"{drop.Operation.Label.TrimEnd('…')} completed for {drop.Paths.Count} included item(s).", origin);
+                    $"{drop.Operation.Label.TrimEnd('…')} completed for {drop.Paths.Count} item(s).", origin);
             }
             else
             {
@@ -350,7 +355,7 @@ public partial class App : Application
                 TrackSubmitted(submitted, origin);
             }
         }
-        catch (OperationCanceledException) { home.Report("Canceled. No new work was submitted."); if (origin == SubmissionOrigin.Wheel) toast?.Close(); }
+        catch (OperationCanceledException) { home.Report("Canceled."); if (origin == SubmissionOrigin.Wheel) toast?.Close(); }
         catch (Exception error)
         {
             string message = "Could not complete: " + error.Message;
@@ -368,9 +373,9 @@ public partial class App : Application
             quietPreparing = false;
         }
         home?.AddJobs(submitted);
-        if (submitted.Count == 0) { home?.Report("Canceled. No work was submitted."); if (origin == SubmissionOrigin.Wheel) toast?.Close(); }
+        if (submitted.Count == 0) { home?.Report("Canceled."); if (origin == SubmissionOrigin.Wheel) toast?.Close(); }
         else if (origin == SubmissionOrigin.Wheel) RefreshQuietJobs();
-        else ReportSubmission($"Submitted {submitted.Count} job(s). Your originals stay safe.", origin, pending: true);
+        else ReportSubmission($"Submitted {submitted.Count} job(s).", origin, pending: true);
     }
     private static void PlaceEditor(Window editor, Window? owner)
     {
@@ -425,7 +430,7 @@ public partial class App : Application
         int complete = quietJobs.Count(job => job.State == ConversionJobState.Succeeded);
         if (pending == 0 && failed == 0 && complete == 0) { toast.Close(); return; }
         string message = pending > 0 ? $"{pending} job(s) in progress · {complete} ready · {failed} failed"
-            : failed > 0 ? $"{complete} ready · {failed} failed. View jobs for details and retry." : $"{complete} job(s) complete. Your copies are ready.";
+            : failed > 0 ? $"{complete} ready · {failed} failed" : $"{complete} complete";
         var single = quietJobs.Count == 1 ? quietJobs.First() : null;
         if (pending > 0 && single is not null) message = string.Join(", ", single.Request.Inputs.Select(Path.GetFileName));
         toast.Update(message, pending > 0, quietJobs.Where(job => job.State == ConversionJobState.Succeeded).SelectMany(job => job.Outputs).ToArray(),
@@ -447,25 +452,27 @@ public partial class App : Application
         using var registration = token.Register(() => Dispatcher.BeginInvoke(new Action(() => dialog.Close())));
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.Choice : null);
     }
-    private void JobChanged(ConversionJob job)
+    private void JobChanged(ConversionJob job) => jobUpdates.Enqueue(job);
+    private void RefreshChangedJobs(IReadOnlyCollection<ConversionJob> changedJobs)
     {
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(async () =>
+        if (IsQuitting) return;
+        home?.RefreshJobs(changedJobs);
+        if (changedJobs.Any(quietJobs.Contains)) RefreshQuietJobs();
+        foreach (var job in changedJobs)
         {
-            if (IsQuitting) return;
-            home?.RefreshJobs();
-            if (quietJobs.Contains(job)) RefreshQuietJobs();
             if (job.State is ConversionJobState.Succeeded or ConversionJobState.Failed && notified.Add(job))
             {
                 feedbackAudio?.Play(job.State == ConversionJobState.Succeeded ? FeedbackCue.Success : FeedbackCue.Error);
                 if (settings.RevealCompletedOutputs && job.State == ConversionJobState.Succeeded && job.Outputs.Count > 0)
-                    await RevealAsync(job.Outputs);
+                    _ = RevealAsync(job.Outputs);
             }
-        }));
+        }
     }
     internal async Task QuitAsync()
     {
         if (IsQuitting) return;
         IsQuitting = true;
+        jobUpdates.Stop();
         // Home.Dispose closes its owned demonstration. Retain those workers now,
         // before closing their windows removes them from Application.Windows.
         var opticalDemos = Windows.OfType<WheelDemoWindow>().ToArray();
@@ -505,6 +512,7 @@ public partial class App : Application
     }
     protected override void OnExit(ExitEventArgs e)
     {
+        jobUpdates.Stop();
         lifetime.Cancel();
         monitor?.Dispose();
         if (queue is not null) queue.JobChanged -= JobChanged;

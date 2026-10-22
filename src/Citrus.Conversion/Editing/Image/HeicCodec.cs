@@ -68,7 +68,7 @@ public static class HeicCodec
     }
     private static async Task RunAsync(string[] arguments,CancellationToken ct)
     {
-        if(!File.Exists(Executable))throw new NotSupportedException("The offline HEIC feature pack is missing.");
+        if(!File.Exists(Executable))throw new NotSupportedException("HEIC tools are missing. Reinstall Citrus.");
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(TimeSpan.FromSeconds(120));
         var start=new ProcessStartInfo(Executable){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=Path.GetDirectoryName(Executable)!};
         foreach(string argument in arguments)start.ArgumentList.Add(argument);

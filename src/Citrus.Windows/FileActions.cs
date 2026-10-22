@@ -32,7 +32,7 @@ public sealed class FileActions
         stopping = cancellationToken;
         this.pickDestination = pickDestination ?? (() =>
         {
-            var picker = new OpenFolderDialog { Title = "Move originals to this folder (existing items are never replaced)" };
+            var picker = new OpenFolderDialog { Title = "Move originals to" };
             return picker.ShowDialog() == true ? picker.FolderName : null;
         });
         this.launch = launch ?? (start => Process.Start(start)?.Dispose());
@@ -54,7 +54,7 @@ public sealed class FileActions
                 break;
             case "action.move":
                 string? destination = pickDestination();
-                if (destination is null) throw new OperationCanceledException("Move canceled. Originals were not changed.");
+                if (destination is null) throw new OperationCanceledException("Move canceled.");
                 stopping.ThrowIfCancellationRequested();
                 LastMoveDestinations = await ShellFileMover.MoveAsync(selection, destination, BeforeMovePerform);
                 break;
@@ -78,7 +78,7 @@ public sealed class FileActions
     {
         var selection = paths.Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (!DropValidation.Accepts(paths, OperationMode.Actions) || selection.Any(path => !File.Exists(path) && !Directory.Exists(path)))
-            throw new IOException("Choose existing physical files or folders. Unavailable cloud placeholders cannot be used.");
+            throw new IOException("Choose existing files or folders. Download cloud files first.");
         return selection;
     }
 

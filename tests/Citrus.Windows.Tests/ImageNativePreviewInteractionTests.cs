@@ -47,7 +47,8 @@ public sealed class ImageNativePreviewInteractionTests(DesktopFixture desktop)
                     const double layoutEpsilon=1d/4096;
                     Assert.InRange(Math.Abs(bitmap.PixelWidth-bitmap.Width*dpi.DpiScaleX),0,layoutEpsilon);
                     Assert.InRange(Math.Abs(bitmap.PixelHeight-bitmap.Height*dpi.DpiScaleY),0,layoutEpsilon);
-                    Assert.Contains("one image pixel per screen pixel",((TextBlock)window.FindName("PreviewStatus")).Text);
+                    var status=(TextBlock)window.FindName("PreviewStatus");window.UpdateLayout();
+                    Assert.Empty(status.Text);Assert.Equal(Visibility.Collapsed,status.Visibility);
                     before=preview.Source;((Button)window.FindName("FitPreviewButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));await Changed(preview,before);
                     Assert.False(((CheckBox)window.FindName("DetailPreview")).IsChecked);Assert.Equal(Stretch.Uniform,preview.Stretch);Assert.Equal("Fit",((TextBlock)window.FindName("ZoomValue")).Text);
                 }

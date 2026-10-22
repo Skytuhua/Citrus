@@ -22,7 +22,6 @@ public sealed class ImageBackgroundView:StackPanel
         padding=canvas is null?160:Math.Min(canvas.Placement.X,canvas.Placement.Y);corners=canvas?.CornerRadius??24;shadow=canvas?.Shadow?.Sigma??24;background=canvas?.Background??Gradient(0);ratio=canvas?.AspectRatio;
         if(canvas is null)
         {
-            Children.Add(new TextBlock {Text="No background is applied. Add a background to edit padding, corners and shadow.",TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,12)});
             var add=new Button {Content="Add background",HorizontalAlignment=HorizontalAlignment.Left};add.SetResourceReference(StyleProperty,"SecondaryButton");
             add.Click+=(_,_)=>{try{model.AddDefaultBackground();error("");rebuild();refresh();}catch(ArgumentException e){error(e.Message);}};Children.Add(add);return;
         }

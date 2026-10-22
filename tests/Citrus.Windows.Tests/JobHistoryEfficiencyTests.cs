@@ -1,0 +1,84 @@
+using Citrus.Core;
+
+namespace Citrus.Windows.Tests;
+
+public sealed class JobHistoryEfficiencyTests
+{
+    [Fact]
+    public async Task Completed_output_rows_keep_their_identity_across_refreshes()
+    {
+        var engine = new OutputEngine();
+        var queue = new JobQueue([engine]);
+        var job = queue.Enqueue(new(engine.Operations[0], ["source.txt"], new(), null));
+        await job.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        var model = new JobViewModel(job);
+        var outputs = model.Outputs;
+        Assert.Equal("result.txt", Assert.Single(outputs).Name);
+        model.Refresh();
+        Assert.Same(outputs, model.Outputs);
+        Assert.Same(outputs[0], model.Outputs[0]);
+    }
+
+    [Fact]
+    public async Task Committed_outputs_replace_the_cached_running_job_rows()
+    {
+        var engine = new OutputEngine(hold: true);
+        var queue = new JobQueue([engine]);
+        var job = queue.Enqueue(new(engine.Operations[0], ["source.txt"], new(), null));
+        await engine.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var model = new JobViewModel(job);
+        var initial = model.Outputs;
+        try
+        {
+            Assert.Empty(initial);
+            engine.Release.TrySetResult();
+            await job.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+            model.Refresh();
+            Assert.Equal("result.txt", Assert.Single(model.Outputs).Name);
+            Assert.NotSame(initial, model.Outputs);
+        }
+        finally { engine.Release.TrySetResult(); await job.Completion.WaitAsync(TimeSpan.FromSeconds(5)); }
+    }
+
+    private sealed class OutputEngine(bool hold = false) : IConversionEngine
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IReadOnlyList<OperationDescriptor> Operations { get; } = [new("fixture.outputs", "Output fixture", OperationMode.Convert, ".txt", false, false)];
+        public bool CanExecute(OperationRequest request) => true;
+        public async Task<ConversionResult> ExecuteAsync(OperationRequest request, IProgress<ConversionProgress>? progress, CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            if (hold) await Release.Task.WaitAsync(cancellationToken);
+            return new(["result.txt"]);
+        }
+    }
+}
+
+[Collection("Desktop")]
+public sealed class JobHistoryPresentationTests(DesktopFixture desktop)
+{
+    [Fact]
+    public Task Progress_only_invalidates_the_changed_job_in_history() => desktop.RunAsync(() =>
+    {
+        var queue = new JobQueue([]);
+        var operation = new OperationDescriptor("fixture.history", "History fixture", OperationMode.Convert, ".txt", false, false);
+        var first = queue.EnqueueFailure(new(operation, ["first.txt"], new(), null), new InvalidOperationException("First fixture."));
+        var second = queue.EnqueueFailure(new(operation, ["second.txt"], new(), null), new InvalidOperationException("Second fixture."));
+        using var home = new MainWindow((App)System.Windows.Application.Current);
+        try
+        {
+            home.AddJobs([first, second]);
+            var models = ((System.Windows.Controls.ItemsControl)home.FindName("JobList")).Items.Cast<JobViewModel>().ToDictionary(model => model.Job);
+            int firstChanges = 0, secondChanges = 0;
+            models[first].PropertyChanged += (_, _) => firstChanges++;
+            models[second].PropertyChanged += (_, _) => secondChanges++;
+            home.RefreshJobs([first]);
+            Assert.Equal(1, firstChanges);
+            Assert.Equal(0, secondChanges);
+            Assert.Contains("2 failed", ((System.Windows.Controls.TextBlock)home.FindName("JobSummary")).Text);
+        }
+        finally { home.Dispose(); home.Close(); }
+        return Task.CompletedTask;
+    });
+}

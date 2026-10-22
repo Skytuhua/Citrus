@@ -103,13 +103,13 @@ public sealed class AnnotationOverlay : FrameworkElement
                 id??=Recipe.Masks.Reverse().FirstOrDefault(m=>ImageLayerGeometry.Contains(ImageLayerGeometry.MaskToCanvas(Recipe,SourceSize,m.Bounds),origin))?.Id;
                 if(id is null&&Recipe.Annotations.FirstOrDefault(a=>a.Id==SelectedId) is {Geometry:TextGeometry} pending&&LocalTextBounds(pending) is null)
                 {
-                    Error?.Invoke("Preparing exact text layout. Its handles appear when ready.");e.Handled=true;return;
+                    Error?.Invoke("Wait for text handles before resizing.");e.Handled=true;return;
                 }
                 Select(id);
             }
             if(SelectedBounds() is not {} selected)
             {
-                if(Recipe.Annotations.Any(a=>a.Geometry is TextGeometry&&LocalTextBounds(a) is null))Error?.Invoke("Preparing exact text layout. Its handles appear when ready.");
+                if(Recipe.Annotations.Any(a=>a.Geometry is TextGeometry&&LocalTextBounds(a) is null))Error?.Invoke("Wait for text handles before resizing.");
                 return;
             }
             startBounds=selected;

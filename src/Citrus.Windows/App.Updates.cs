@@ -21,7 +21,7 @@ public partial class App
     private DispatcherTimer? updateIdleTimer;
     private Forms.ToolStripMenuItem? updateMenuItem;
     private bool updateAdmissionClosed, applyingUpdate;
-    private AutomaticUpdateStatus updateStatus = new("Install a release from GitHub to enable automatic updates.");
+    private AutomaticUpdateStatus updateStatus = new("Install Citrus to enable updates.");
 
     internal static bool ShouldStartAutomaticUpdates(ResidentOptions value) =>
         value.SettingsRoot is null && value.InstanceSuffix is null && value.ObserveGestures;
@@ -64,7 +64,7 @@ public partial class App
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
             catch (Exception error) when (error is not OutOfMemoryException)
-            { QueueUpdateStatus(new("Automatic updates are unavailable. Check the GitHub releases page for the latest version.")); }
+            { QueueUpdateStatus(new("Updates unavailable. Check GitHub releases.")); }
         }, ct);
     }
 
@@ -73,7 +73,7 @@ public partial class App
         if (IsQuitting || updateAdmissionClosed) return;
         if (automaticUpdates is null || updateLifetime is null)
         {
-            SetUpdateStatus(new("Automatic updates are available in installed release builds. Open GitHub releases to install the latest version."));
+            SetUpdateStatus(new("Install Citrus to enable updates."));
             return;
         }
         await automaticUpdates.CheckAsync(manual: true, updateLifetime.Token);
@@ -149,7 +149,7 @@ public partial class App
                 // Disk/registry work never blocks the dispatcher. The gate checks admission and consent again afterward.
                 installed = await Task.Run(UpdateInstallation.ReadCurrent, ct);
                 if (installed?.CanUpdateSilently != true || !await Citrus.Core.Updates.VerifiedUpdateDownloader.VerifyAsync(ready.Candidate, ready.InstallerPath, ct))
-                { automaticUpdates.DiscardReady(ready); SetUpdateStatus(new("The update could not be verified. Check for updates to download it again.")); return false; }
+                { automaticUpdates.DiscardReady(ready); SetUpdateStatus(new("Update verification failed. Check for updates to try again.")); return false; }
                 installTransactionPending = await Task.Run(UpdateInstallation.HasPendingTransaction, ct);
                 return true;
             }
@@ -171,7 +171,7 @@ public partial class App
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             updateAdmissionClosed = false;
-            if (!IsQuitting) { SetGestures(settings.GesturesEnabled, persist: false); SetUpdateStatus(new("The update could not start. Your current version is unchanged.")); }
+            if (!IsQuitting) { SetGestures(settings.GesturesEnabled, persist: false); SetUpdateStatus(new("Update could not start. Try again.")); }
         }
         finally { applyingUpdate = false; }
     }

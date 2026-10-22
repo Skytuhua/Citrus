@@ -174,6 +174,30 @@ class InstallerUpdateTests(unittest.TestCase):
             self.assertFalse((self.install / name).exists(), name)
             self.assertEqual((backup / name).read_bytes(), contents)
 
+    def test_interrupted_rollback_after_restore_finishes_registration_before_retry(self):
+        self.initialize()
+        parent, args = self.parent_args()
+        self.run_setup('interrupted', *args, expected=25); parent.wait()
+        backup = Path(self.regvalue('UpdateBackupPath'))
+        failed = self.install.with_name(self.name + '.failed-' + self.hashes['new'] + '-0')
+        self.assertEqual(backup, self.install.with_name(self.name + '.previous-' + self.hashes['old']))
+        for path in [self.install, backup, failed]:
+            self.assertEqual(path.parent.resolve(), self.install.parent.resolve())
+            self.assertTrue(path.name.startswith(self.name))
+            self.assertFalse(path.is_symlink())
+        # Model power loss after the rollback's restore rename, before its registry writes.
+        self.install.rename(failed)
+        backup.rename(self.install)
+        self.assertEqual(self.regvalue('UpdateState'), 'Installing')
+        self.assertEqual(self.regvalue('PackageInventory'), self.hashes['new'])
+        self.assertFalse(backup.exists())
+        parent, args = self.parent_args()
+        self.run_setup('new', *args); parent.wait()
+        self.assertEqual((self.install / 'owned.txt').read_text(), 'new payload')
+        self.assertEqual(self.regvalue('UpdateState'), 'Committed')
+        self.assertEqual((Path(self.regvalue('UpdateBackupPath')) / 'user-keep.txt').read_text(), 'user data')
+        self.assertEqual((failed / 'Citrus.Windows.exe').read_text(), 'new app')
+
     def test_second_changed_update_after_boot_confirmation(self):
         self.initialize()
         parent, args = self.parent_args()

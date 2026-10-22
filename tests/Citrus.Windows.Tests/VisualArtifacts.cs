@@ -39,7 +39,7 @@ internal static class VisualArtifacts
             context,
             captureCoordinates = "Measured root rectangle cropped from the actual ancestor Window render; no subtree offset normalization or stretching",
             renderingLimit = "WPF visual tree only; not a screen capture. Native nonclient chrome, DWM composition and desktop backdrops are not captured or simulated.",
-            cropRounding = "Outward raster bounds: floor(left/top), ceil(right/bottom); fractional edge coverage retained",
+            cropRounding = "Outward raster bounds intersected with Window pixels; at most one native pixel of layout rounding allowed",
             rootBoundsInWindowDip = new { x = rendered.Bounds.X, y = rendered.Bounds.Y, width = rendered.Bounds.Width, height = rendered.Bounds.Height },
             cropInWindowPixels = new { x = rendered.Crop.X, y = rendered.Crop.Y, width = rendered.Crop.Width, height = rendered.Crop.Height },
             rootOriginInCropPixels = new { x = rendered.Bounds.X * scale - rendered.Crop.X, y = rendered.Bounds.Y * scale - rendered.Crop.Y },
@@ -71,15 +71,18 @@ internal static class VisualArtifacts
         window.UpdateLayout();
         var bounds = root.TransformToAncestor(window).TransformBounds(new Rect(new Point(), root.RenderSize));
         Assert.True(bounds.Width > 0 && bounds.Height > 0, "The actual production view must have layout before rendering.");
+        var dpi = VisualTreeHelper.GetDpi(window);
+        // Native window sizes round fractional layout edges to whole monitor pixels.
+        Assert.True(bounds.Left >= -1 / dpi.DpiScaleX && bounds.Top >= -1 / dpi.DpiScaleY &&
+            bounds.Right <= window.RenderSize.Width + 1 / dpi.DpiScaleX && bounds.Bottom <= window.RenderSize.Height + 1 / dpi.DpiScaleY,
+            $"Measured root {bounds} exceeds Window layout {window.RenderSize} beyond native pixel rounding.");
         // Render the parentless Window once so offsets and ancestor backgrounds are painted by WPF itself.
         // Cropping the measured root rect neither remaps VisualBrush content bounds nor changes layout.
         var full = new RenderTargetBitmap((int)Math.Ceiling(window.RenderSize.Width * scale),
             (int)Math.Ceiling(window.RenderSize.Height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
         full.Render(window);
-        int left = (int)Math.Floor(bounds.Left * scale), top = (int)Math.Floor(bounds.Top * scale);
-        int right = (int)Math.Ceiling(bounds.Right * scale), bottom = (int)Math.Ceiling(bounds.Bottom * scale);
-        Assert.True(left >= 0 && top >= 0 && right <= full.PixelWidth && bottom <= full.PixelHeight,
-            $"Measured root crop ({left},{top})–({right},{bottom}) exceeds Window raster {full.PixelWidth}×{full.PixelHeight}.");
+        int left = Math.Max(0, (int)Math.Floor(bounds.Left * scale)), top = Math.Max(0, (int)Math.Floor(bounds.Top * scale));
+        int right = Math.Min(full.PixelWidth, (int)Math.Ceiling(bounds.Right * scale)), bottom = Math.Min(full.PixelHeight, (int)Math.Ceiling(bounds.Bottom * scale));
         var crop = new Int32Rect(left, top, right - left, bottom - top);
         var bitmap = new CroppedBitmap(full, crop);
         bitmap.Freeze();

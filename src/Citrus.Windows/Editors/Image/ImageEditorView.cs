@@ -122,7 +122,7 @@ public sealed class ImageEditorView : StackPanel
     }
     private void Crop()
     {
-        Label("Drag a corner or edge to resize; drag inside or use arrow keys to move. Coordinates are oriented source pixels.");
+        Label("Drag handles to resize; drag inside to move.");
         var size = model.Selected!.Size; if (Recipe.Geometry.QuarterTurns % 2 == 1) size = new(size.Height, size.Width);
         var crop = Recipe.Geometry.Crop ?? new RectD(0,0,size.Width,size.Height);
         var boxes = new Dictionary<string,TextBox>();
@@ -153,7 +153,7 @@ public sealed class ImageEditorView : StackPanel
     private void Rotate()
     {
         Label($"Current rotation: {Recipe.Geometry.QuarterTurns * 90}° · Horizontal flip: {(Recipe.Geometry.FlipX ? "on" : "off")} · Vertical flip: {(Recipe.Geometry.FlipY ? "on" : "off")}");
-        Label("Quarter turns apply before crop. Rotating resets the crop to the whole image.");
+        Label("Rotating resets the crop.");
         Button("Rotate 90° clockwise", () => { Change(Recipe with { Geometry = Recipe.Geometry with { QuarterTurns = (Recipe.Geometry.QuarterTurns + 1) % 4, Crop = null } }); rebuild(); });
         Button("Rotate 90° counterclockwise", () => { Change(Recipe with { Geometry = Recipe.Geometry with { QuarterTurns = (Recipe.Geometry.QuarterTurns + 3) % 4, Crop = null } }); rebuild(); });
         Button("Flip horizontally", () => { Change(Recipe with { Geometry = Recipe.Geometry with { FlipX = !Recipe.Geometry.FlipX } }); rebuild(); });
@@ -161,7 +161,7 @@ public sealed class ImageEditorView : StackPanel
     }
     private void Resize()
     {
-        Label("Set width, height, or both. Preserve aspect fits inside both limits. Blank dimensions leave the source size unchanged.");
+        Label("Leave both dimensions blank to keep the original size.");
         var intent = model.Selected!.ResizeIntent;
         Action commitPair = null!; // Assigned before any input is dispatched to this constructed view.
         var width = TextField("Width · optional pixels", intent?.Width?.ToString() ?? Recipe.Geometry.OutputSize?.Width.ToString() ?? "", _ => commitPair());
@@ -184,7 +184,7 @@ public sealed class ImageEditorView : StackPanel
         commitPair = Apply;
         pendingFields.Add(Apply);
         Button("Apply size", Apply);
-        Label("Width-only and height-only settings use each image's own aspect ratio when applied to all.");
+        Label("Each image uses its own aspect ratio.");
     }
     private void Compress()
     {
@@ -196,16 +196,16 @@ public sealed class ImageEditorView : StackPanel
         switch(Document.Export.Compression)
         {
             case ReductionGoal reduction:
-                var targetLabel=new TextBlock{Text=$"Output will be at most {FormatBytes((long)decimal.Floor(original*(100-reduction.Percent)/100))}.",TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,8)};
-                Range("Reduce by · %",(double)reduction.Percent,1,99,1,(value,transient)=>{model.Change(Document with{Export=Document.Export with{Compression=new ReductionGoal((decimal)value)}},transient);targetLabel.Text=$"Output will be at most {FormatBytes((long)decimal.Floor(original*(100-(decimal)value)/100))}.";refresh();});
+                var targetLabel=new TextBlock{Text=$"Maximum: {FormatBytes((long)decimal.Floor(original*(100-reduction.Percent)/100))}",TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,8)};
+                Range("Reduce by · %",(double)reduction.Percent,1,99,1,(value,transient)=>{model.Change(Document with{Export=Document.Export with{Compression=new ReductionGoal((decimal)value)}},transient);targetLabel.Text=$"Maximum: {FormatBytes((long)decimal.Floor(original*(100-(decimal)value)/100))}";refresh();});
                 Children.Add(targetLabel);break;
             case ByteGoal bytes:
                 TextField("Target size · bytes",bytes.MaximumBytes.ToString(CultureInfo.InvariantCulture),text=>{if(!long.TryParse(text,out long value)||value<1)throw new ArgumentException("Target size must be a positive whole byte count.");model.Change(Document with{Export=Document.Export with{Compression=new ByteGoal(value)}});refresh();});break;
             case QualityGoal quality:
                 Range("Quality",quality.Value,1,100,1,(value,transient)=>{model.Change(Document with{Export=Document.Export with{Compression=new QualityGoal((int)value)}},transient);refresh();});break;
         }
-        Label("Preview shows pixel edits. Export measures the encoded size. Size targets may reduce color detail; dimensions and transparency stay unchanged. If the target cannot be reached, no oversized copy is saved.");
-        if(Document.Export.FormatId is "heic" or "heif")Label("Transparent HEIC images use a lossless bitstream to preserve alpha values. Quality and size reduction may be limited; color sampling remains 4:2:0.");
+        Label("Size targets may reduce color detail. No copy is saved if the target cannot be reached.");
+        if(Document.Export.FormatId is "heic" or "heif")Label("Transparency can limit HEIC compression.");
     }
     private static string FormatBytes(long bytes)=>bytes>=1024*1024?$"{bytes/(1024d*1024):0.#} MB ({bytes:N0} bytes)":bytes>=1024?$"{bytes/1024d:0.#} KB ({bytes:N0} bytes)":$"{bytes:N0} bytes";
 }

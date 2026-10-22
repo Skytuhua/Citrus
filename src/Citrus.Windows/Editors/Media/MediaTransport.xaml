@@ -25,7 +25,7 @@
    <Button x:Name="Previous" Content="Previous frame" Click="PreviousClicked" Style="{DynamicResource TertiaryButton}" Padding="8,3" MinHeight="28" Margin="0,0,4,0" ToolTip="Previous frame" AutomationProperties.Name="Previous video frame"/>
    <Button x:Name="Next" Content="Next frame" Click="NextClicked" Style="{DynamicResource TertiaryButton}" Padding="8,3" MinHeight="28" Margin="0,0,8,0" ToolTip="Next frame" AutomationProperties.Name="Next video frame"/>
    <CheckBox x:Name="Original" Content="Original" VerticalAlignment="Center" Click="OriginalClicked"
-     ToolTip="Bypass pixel and sample effects. Keep trims, clip order, speed and output format for comparison."/>
+     ToolTip="Compare without effects. Trims, order and speed stay applied."/>
    <TextBlock x:Name="Timecode" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11"/>
   </WrapPanel>
   <TextBlock x:Name="Status" Grid.Row="5" Margin="0,4,0,0" FontSize="11" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>

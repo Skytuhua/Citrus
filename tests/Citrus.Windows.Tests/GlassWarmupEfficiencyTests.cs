@@ -6,10 +6,10 @@ namespace Citrus.Windows.Tests;
 public sealed class GlassWarmupEfficiencyTests
 {
     [Theory]
-    [InlineData(1d, 312)]
-    [InlineData(1.25d, 391)]
-    [InlineData(1.5d, 469)]
-    [InlineData(2d, 625)]
+    [InlineData(1d, 287)]
+    [InlineData(1.25d, 358)]
+    [InlineData(1.5d, 430)]
+    [InlineData(2d, 574)]
     public void Warmup_raster_matches_the_native_truncated_wheel_width(double monitorScale, int pixels)
     {
         MethodInfo method = RasterScaleMethod();

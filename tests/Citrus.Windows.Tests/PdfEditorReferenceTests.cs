@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Citrus.Conversion;
@@ -19,6 +20,19 @@ namespace Citrus.Windows.Tests;
 [Collection("Desktop")]
 public sealed class PdfEditorReferenceTests(DesktopFixture desktop)
 {
+    [Theory]
+    [InlineData("pdf.compress","Compress","")]
+    [InlineData("pdf.metadata","Save","Search metadata")]
+    public Task Text_field_Delete_does_not_remove_hidden_PDF_pages(string id,string action,string name)=>desktop.RunAsync(async()=>
+    {
+        using var fixture=new Fixture();var result=await Show(fixture,id,action,window=>
+        {
+            var input=Descendants(window).OfType<System.Windows.Controls.TextBox>().Single(t=>name.Length==0?t.IsVisible:System.Windows.Automation.AutomationProperties.GetName(t)==name);
+            var key=new System.Windows.Input.KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(window),0,Key.Delete){RoutedEvent=Keyboard.PreviewKeyDownEvent};
+            input.RaiseEvent(key);Assert.False(key.Handled);Click(window,action);
+        });
+        Assert.NotNull(result);Assert.Equal(2,Assert.IsType<PdfRecipe>(Assert.Single(result.Items).Document.Recipe).Pages.Length);
+    });
     [Theory]
     [InlineData("pdf.editor","Apply")][InlineData("pdf.compress","Compress")][InlineData("pdf.metadata","Save")]
     public Task Untouched_PDF_tool_cancels_once_without_queuing_or_saving(string id,string action)=>desktop.RunAsync(async()=>
@@ -60,7 +74,7 @@ public sealed class PdfEditorReferenceTests(DesktopFixture desktop)
             Descendants(window).OfType<System.Windows.Controls.TextBox>().Single(t=>t.IsVisible).Text="20";
             Click(window,"Compress");
             Assert.True(window.IsVisible);
-            Assert.Contains(Descendants(window).OfType<TextBlock>(),text=>text.Text.Contains("Quality requires",StringComparison.Ordinal));
+            Assert.Contains(Descendants(window).OfType<TextBlock>(),text=>text.Text.Contains("Enable page image rebuilding",StringComparison.Ordinal));
             Descendants(window).OfType<System.Windows.Controls.CheckBox>().Single().IsChecked=true;
             Click(window,"Compress");
         });
@@ -121,22 +135,21 @@ public sealed class PdfEditorReferenceTests(DesktopFixture desktop)
         }
     });
     [Fact]
-    public Task Compact_metadata_keeps_removal_and_warning_reachable_above_fixed_footer()=>desktop.RunAsync(async()=>
+    public Task Compact_metadata_keeps_removal_reachable_above_fixed_footer()=>desktop.RunAsync(async()=>
     {
         using var fixture=new Fixture();
         await Show(fixture,"pdf.metadata","Save",window=>
         {
             window.Width=560;window.Height=440;window.UpdateLayout();
             var root=(FrameworkElement)window.Content;
-            var warning=Descendants(window).OfType<TextBlock>().Single(t=>t.Text.StartsWith("Remove All clears",StringComparison.Ordinal));
-            var bodyScroll=Ancestors(warning).OfType<ScrollViewer>().FirstOrDefault();
+            var remove=Descendants(window).OfType<Button>().Single(b=>Equals(b.Content,"Remove All"));
+            var bodyScroll=Ancestors(remove).OfType<ScrollViewer>().FirstOrDefault();
             Assert.NotNull(bodyScroll);
             bodyScroll.ScrollToEnd();window.UpdateLayout();
-            var remove=Descendants(window).OfType<Button>().Single(b=>Equals(b.Content,"Remove All"));
             var save=Descendants(window).OfType<Button>().Single(b=>Equals(b.Content,"Save"));
-            VisualArtifacts.AssertInside(remove,root);VisualArtifacts.AssertInside(warning,root);
-            double contentBottom=warning.TranslatePoint(new System.Windows.Point(0,warning.ActualHeight),root).Y;
-            Assert.True(contentBottom<=save.TranslatePoint(default,root).Y,"Metadata warning must stay above the fixed action footer.");
+            VisualArtifacts.AssertInside(remove,root);Assert.NotNull(remove.ToolTip);
+            double contentBottom=remove.TranslatePoint(new System.Windows.Point(0,remove.ActualHeight),root).Y;
+            Assert.True(contentBottom<=save.TranslatePoint(default,root).Y,"Metadata actions must stay above the fixed action footer.");
             Click(window,"Cancel");
         });
     });
@@ -168,7 +181,7 @@ public sealed class PdfEditorReferenceTests(DesktopFixture desktop)
             Descendants(window).OfType<System.Windows.Controls.ComboBox>().Single().SelectedIndex=1;
             var title=Descendants(window).OfType<System.Windows.Controls.TextBox>().Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Title");
             Assert.Equal("Title B",title.Text);
-            Assert.Contains(Descendants(window).OfType<TextBlock>(),text=>text.Text.StartsWith("Technical properties",StringComparison.Ordinal)&&text.Text.Contains("Pages: 3",StringComparison.Ordinal));
+            Assert.Contains(Descendants(window).OfType<TextBlock>(),text=>text.Text.Contains("Pages: 3",StringComparison.Ordinal));
             Remove();Restore();Assert.Equal("Title B",title.Text);
             title.Text="Edited B";Remove();Restore();Assert.Equal("Edited B",title.Text);Click(window,"Save");
             void Remove()=>Descendants(window).OfType<Button>().Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Remove Title").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

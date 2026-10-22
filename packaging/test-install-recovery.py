@@ -37,7 +37,7 @@ def mutations(payload):
                 else:
                     match = re.search(r'^Function ' + re.escape(name) + r'\n(.*?)^FunctionEnd', NSIS, re.M | re.S)
                     if match: yield from expand(match.group(1))
-            elif line.startswith('WriteRegStr HKCU "Software\\Citrus" '):
+            elif line.startswith('WriteRegStr HKCU "${CITRUS_REGKEY}" '):
                 parts = shlex.split(line, posix=False)
                 yield ('registry', parts[3].strip('"'), parts[4].strip('"'))
             elif line.startswith(('SetOutPath "$INSTDIR', 'CreateDirectory "$INSTDIR')):

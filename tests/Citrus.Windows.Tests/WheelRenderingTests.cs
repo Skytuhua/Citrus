@@ -15,7 +15,6 @@ using DataFormats = System.Windows.DataFormats;
 using DragEventArgs = System.Windows.DragEventArgs;
 using DragDropEffects = System.Windows.DragDropEffects;
 using Point = System.Windows.Point;
-using Image = System.Windows.Controls.Image;
 using Brushes = System.Windows.Media.Brushes;
 using ShapePath = System.Windows.Shapes.Path;
 using Size = System.Windows.Size;
@@ -123,7 +122,7 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
         Assert.Equal(48, ((FrameworkElement)fixture.Wheel.FindName("CaptionPlate")).ActualHeight);
         Assert.Null(fixture.Wheel.FindName("ActionPlate"));
         Assert.Equal(372, Canvas.GetTop((UIElement)fixture.Wheel.FindName("NavigationPlate")));
-        fixture.Capture("wheel-reference-eight-pdf-formats", 1, ThemeChoice.Light, expectPreview: false);
+        fixture.Capture("wheel-reference-eight-pdf-formats", 1, ThemeChoice.Light);
         fixture.Wheel.Dismiss();
         string archive = Path.Combine(fixture.Root, "reference.zip");
         using (var zip = new System.IO.Compression.ZipArchive(File.Create(archive), System.IO.Compression.ZipArchiveMode.Create)) { }
@@ -135,7 +134,7 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
         Assert.Null(fixture.Wheel.FindName("ActionDescription"));
         Assert.Null(fixture.Wheel.FindName("ActionPlate"));
         Assert.Equal(Visibility.Collapsed, ((UIElement)fixture.Wheel.FindName("NavigationPlate")).Visibility);
-        fixture.Capture("wheel-reference-one-tool", 1, ThemeChoice.Light, expectPreview: false);
+        fixture.Capture("wheel-reference-one-tool", 1, ThemeChoice.Light);
     });
 
     [Theory]
@@ -238,19 +237,18 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
     [Theory]
     [InlineData(ThemeChoice.Light)]
     [InlineData(ThemeChoice.Dark)]
-    public Task Hub_separates_preview_from_metadata_and_paging_is_one_connected_control(ThemeChoice choice) => desktop.RunAsync(async () =>
+    public Task Hub_keeps_only_the_capsule_and_paging_is_one_connected_control(ThemeChoice choice) => desktop.RunAsync(async () =>
     {
         using var themes = new ThemeManager(Application.Current); themes.Apply(choice, true);
         using var fixture = new RenderFixture();
         try
         {
             await fixture.Enter([fixture.Sample]);
-            await fixture.WaitFor(() => fixture.Preview.Source is not null, "preview loaded");
-            var caption = (FrameworkElement)fixture.Wheel.FindName("CaptionPlate");
-            var preview = fixture.Preview.TransformToAncestor(fixture.Surface).TransformBounds(new Rect(fixture.Preview.RenderSize));
-            var text = caption.TransformToAncestor(fixture.Surface).TransformBounds(new Rect(caption.RenderSize));
-            Assert.True(preview.Bottom + 4 <= text.Top, "The thumbnail and file-size text must have separate rows.");
-            Assert.NotNull(((FrameworkElement)fixture.Wheel.FindName("ThumbnailFrame")).Clip);
+            await fixture.WaitFor(() => fixture.Text("Caption").EndsWith("B"), "payload size loaded");
+            var caption = (Border)fixture.Wheel.FindName("CaptionPlate");
+            fixture.AssertCapsuleOnly();
+            Assert.Equal(160, Canvas.GetTop(caption));
+            Assert.Equal(48, caption.Height);
             var navigation = Assert.IsType<Border>(fixture.Wheel.FindName("NavigationPlate"));
             Assert.InRange(navigation.ActualWidth, 160, 220);
             VisualArtifacts.AssertInside((FrameworkElement)fixture.Wheel.FindName("Previous"), navigation);
@@ -259,7 +257,7 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
             fixture.Capture($"wheel-hub-{choice}-neutral", 1, choice);
             fixture.Hover(new Point(184, 184)); fixture.Hover(new Point(184, 62));
             Assert.Equal("WEBP", fixture.Text("Caption"));
-            Assert.False(fixture.Preview.IsVisible);
+            fixture.AssertCapsuleOnly();
             fixture.Capture($"wheel-hub-{choice}-target", 1, choice);
             var next = (FrameworkElement)fixture.Wheel.FindName("Next");
             fixture.Hover(next.TransformToAncestor(fixture.Surface).Transform(new Point(next.ActualWidth / 2, next.ActualHeight / 2)));
@@ -292,13 +290,13 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
         try
         {
             await fixture.Enter([fixture.Root]); // Real admitted directory, empty Convert catalog.
-            fixture.Capture(prefix + "-empty", scale, theme, expectPreview: false);
+            fixture.Capture(prefix + "-empty", scale, theme);
             Assert.Empty(fixture.Petals);
-            Assert.Null(fixture.Preview.Source);
+            fixture.AssertCapsuleOnly();
 
             fixture.Wheel.Dismiss();
             await fixture.Enter([fixture.Sample]);
-            await fixture.WaitFor(() => fixture.Preview.Source is not null, "real bounded image preview");
+            await fixture.WaitFor(() => fixture.Text("Caption").EndsWith("B"), "real file size metadata");
             Assert.Equal(5, fixture.Petals.Length);
             Assert.Equal(new[] { "image.convert.webp", "image.convert.tiff", "image.convert.avif", "image.convert.bmp", "images.pdf" }, fixture.OperationIds);
             fixture.Capture(prefix + "-page1", scale, theme);
@@ -344,14 +342,14 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
             fixture.Wheel.ShowAtPointer(OperationMode.Convert);
             Assert.Equal(0, ((FrameworkElement)fixture.Wheel.FindName("Presentation")).Opacity);
             Assert.Empty(fixture.Petals);
-            Assert.Null(fixture.Preview.Source);
+            fixture.AssertCapsuleOnly();
             Assert.Equal("Choose", fixture.Text("Caption"));
             fixture.Wheel.Dismiss();
             await fixture.Enter([fixture.Sample, fixture.Second]);
-            await fixture.WaitFor(() => fixture.Preview.Source is not null, "batch preview");
+            await fixture.WaitFor(() => fixture.Text("Caption") == "2 files", "batch size label");
             fixture.Capture(prefix + "-batch", scale, theme);
-            Assert.Equal("2", fixture.Text("CountLabel"));
-            Assert.Equal(Visibility.Visible, ((FrameworkElement)fixture.Wheel.FindName("CountBadge")).Visibility);
+            Assert.Equal("2 files", fixture.Text("Caption"));
+            fixture.AssertCapsuleOnly();
         }
         finally { themes.Apply(ThemeChoice.Light, reduceMotion: true); }
     });
@@ -373,15 +371,15 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
                 foreach (var mode in new[] { OperationMode.Convert, OperationMode.Actions })
                 {
                     await fixture.Enter([path], mode);
-                    await fixture.WaitFor(() => fixture.Preview.Source is not null, "real hub thumbnail");
+                    await fixture.WaitFor(() => fixture.Text("Caption").EndsWith("B"), "real file size metadata");
                     fixture.Wheel.ApplyMaterialPolicy(new(false, false, "TextScaleFixture"), theme == ThemeChoice.Dark, textScale);
                     await fixture.WaitFor(() => !fixture.Wheel.MaterialPresentationPending, "material presentation after text policy");
                     fixture.Wheel.UpdateLayout();
                     VisualArtifacts.Capture(fixture.Surface, $"wheel-hub-{theme}-{mode}-text{textScale * 100:0}-raster100", 1, theme,
                         new { textScale, mode = mode.ToString(), actualPolicyApplied = true, rasterScale = 1 });
                     Assert.Equal(1, ((FrameworkElement)fixture.Wheel.FindName("Presentation")).Opacity);
-                    Assert.True(fixture.Preview.IsVisible);
-                    var visible = new List<Rect> { Bounds(fixture.Preview) };
+                    fixture.AssertCapsuleOnly();
+                    var visible = new List<Rect> { Bounds((FrameworkElement)fixture.Wheel.FindName("CaptionPlate")) };
                     foreach (string name in new[] { "Badge", "ModeLabel" })
                     {
                         var label = (TextBlock)fixture.Wheel.FindName(name);
@@ -408,7 +406,7 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
     {
         using var fixture = new RenderFixture();
         await fixture.Enter([fixture.Sample]);
-        await fixture.WaitFor(() => fixture.Preview.Source is not null && fixture.Text("Caption").EndsWith("B"), "preview and size before measurement");
+        await fixture.WaitFor(() => fixture.Text("Caption").EndsWith("B"), "payload size before measurement");
         fixture.Hover(new Point(184,184));
         var first = fixture.Args(DragDrop.PreviewDragOverEvent, new Point(184,62));
         var secondPosition = WheelGeometry.At(122, 360d / fixture.Petals.Length);
@@ -460,7 +458,6 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
         public WheelPetal[] Petals => ((Canvas)Wheel.FindName("Sectors")).Children.Cast<WheelPetal>().ToArray();
         public IEnumerable<string> OperationIds => ((IReadOnlyList<OperationDescriptor>)typeof(WheelWindow)
             .GetField("pageOperations", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Wheel)!).Select(operation => operation.Id);
-        public Image Preview => (Image)Wheel.FindName("Preview");
         private DataObject data = new();
         public RenderFixture()
         {
@@ -500,27 +497,20 @@ public sealed class WheelRenderingTests(DesktopFixture desktop)
         }
         public void Raise(DragEventArgs args) { args.Handled = false; args.Effects = DragDropEffects.None; Surface.RaiseEvent(args); }
         public DragEventArgs Hover(Point point) { var args = Args(DragDrop.PreviewDragOverEvent,point); Raise(args); return args; }
-        public void Capture(string name, double scale, ThemeChoice theme, bool expectPreview = true)
+        public void AssertCapsuleOnly()
+        {
+            foreach (string name in new[] { "Preview", "FileGlyph", "ThumbnailFrame", "CountBadge", "CountLabel" }) Assert.Null(Wheel.FindName(name));
+            var caption = (Border)Wheel.FindName("CaptionPlate");
+            Assert.Equal(160, Canvas.GetTop(caption));
+            Assert.Equal(48, caption.Height);
+            Assert.Equal(WheelPresentationMetrics.HubCapsuleWidth, caption.Width);
+            Assert.Equal(24, caption.CornerRadius.TopLeft);
+        }
+        public void Capture(string name, double scale, ThemeChoice theme)
         {
             VisualArtifacts.Capture(Surface,name,scale,theme); // Save before bounds assertions, for failure inspection.
             Assert.Equal(368, Surface.ActualWidth); Assert.Equal(454, Surface.ActualHeight);
-            var glyph = (FrameworkElement)Wheel.FindName("FileGlyph");
-            bool hovered = (int)typeof(WheelWindow).GetField("selected", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Wheel)! >= 0;
-            if (expectPreview)
-            {
-                Assert.NotNull(Preview.Source);
-                Assert.Equal(hovered ? Visibility.Hidden : Visibility.Visible, Preview.Visibility);
-                Assert.Equal(Visibility.Hidden, glyph.Visibility);
-                VisualArtifacts.AssertInside(Preview,Surface);
-            }
-            else
-            {
-                // A source-less WPF Image may have zero RenderSize; the visible file glyph owns this state.
-                Assert.Null(Preview.Source);
-                Assert.Equal(hovered ? Visibility.Hidden : Visibility.Visible, glyph.Visibility);
-                Assert.Equal(!hovered, glyph.IsVisible);
-                if (!hovered) VisualArtifacts.AssertInside(glyph,Surface);
-            }
+            AssertCapsuleOnly();
             VisualArtifacts.AssertInside((FrameworkElement)Wheel.FindName("Caption"), Surface);
             foreach (string child in new[] { "Hint", "ModeLabel", "Badge" })
             {

@@ -75,7 +75,7 @@ public partial class EditorHostWindow : Window
     }
     private async Task Capture(ImmutableArray<string> paths, bool imported)
     {
-        loading = true; ExportButton.IsEnabled = false; PreviewStatus.Text = "Capturing and inspecting original images…";
+        loading = true; ExportButton.IsEnabled = false; PreviewStatus.Text = "Loading images…";
         try
         {
             await model!.CaptureAsync(paths, imported, lifetime.Token);
@@ -93,7 +93,7 @@ public partial class EditorHostWindow : Window
         if (model is null) return;
         SourceHeading.Text=model.Selected?.Label??"Images";
         IncludedText.Text = $"{model.Sources.Count(r => r.Included)} of {model.Sources.Count} included";
-        DestinationText.Text = model.Destination ?? "Save new copies beside each original";
+        DestinationText.Text = model.Destination ?? "Beside originals";
         UpdateExportAvailability();
     }
     private bool BackgroundsReady => model is not null && model.Sources.Any(row=>row.Included) && model.Sources.Where(row=>row.Included).All(row=>row.Draft?.Recipe is ImageRecipe {Canvas:not null});
@@ -230,7 +230,8 @@ public partial class EditorHostWindow : Window
             ? ImageDetailPreview.Create((ImageRecipe)previewDocument.Recipe,row.Size,current,ImagePreviewViewport.NativeBounds(PreviewArea.ActualWidth,PreviewArea.ActualHeight,monitorDpi.DpiScaleX,monitorDpi.DpiScaleY))
             : new PreviewRequest(current,new(512,512),null,null,null);
         RectD? tile = request.SourceTile;
-        session.Update(previewDocument); PreviewStatus.Text = "Rendering preview…";
+        // Transient status text would resize the detail viewport and request another preview.
+        session.Update(previewDocument);
         try
         {
             await Task.Delay(120, work.Token);
@@ -245,8 +246,7 @@ public partial class EditorHostWindow : Window
             if (closed || current != generation || work.IsCancellationRequested) return;
             PreviewImage.Stretch = tile is not null ? Stretch.None : Stretch.Uniform;
             PreviewImage.Source = bitmap;
-            PreviewStatus.Text = $"{frame.Size.Width} × {frame.Size.Height} preview pixels · " +
-                (Tool == "Crop" ? "Full oriented image with crop overlay; background and canvas-only annotations are hidden while cropping. " : tile is not null ? "Native output-pixel detail; 100% is one image pixel per screen pixel. Fit shows the whole image. " : "") + string.Join(" ",frame.Warnings);
+            PreviewStatus.Text = string.Join(" ",frame.Warnings.Where(warning => !warning.StartsWith("Scaled preview", StringComparison.OrdinalIgnoreCase)));
         }
         catch (OperationCanceledException) when (work.IsCancellationRequested) { }
         catch (Exception error) when (error is not OutOfMemoryException)
@@ -303,7 +303,7 @@ public partial class EditorHostWindow : Window
     private void CheckClose(object? sender, CancelEventArgs e)
     {
         if (accepted is not null || lifetime.IsCancellationRequested || model?.Dirty != true) return;
-        e.Cancel = MessageBox.Show(this,"Discard these edits? Your original files remain unchanged.","Keep editing?",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No) != MessageBoxResult.Yes;
+        e.Cancel = MessageBox.Show(this,"Discard these edits?","Keep editing?",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No) != MessageBoxResult.Yes;
     }
     private void KeyPressed(object sender, KeyEventArgs e)
     {

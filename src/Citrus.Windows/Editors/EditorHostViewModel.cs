@@ -34,7 +34,7 @@ public sealed class EditorSourceRow : INotifyPropertyChanged
     internal void RestoreResize() { resizeIntent = Draft?.Recipe is ImageRecipe image && resizeIntents.TryGetValue(image.Geometry,out var value) ? value : null; }
     private bool included = true;
     public bool Included { get => included; set { included = value; Changed(); } }
-    public string Label => Path.GetFileName(RawPath) + (Imported ? " · added" : "");
+    public string Label => Path.GetFileName(RawPath);
     public string Detail => Error ?? $"{Size.Width} × {Size.Height}";
     public event PropertyChangedEventHandler? PropertyChanged;
     public EditorSourceRow(string rawPath, bool imported) { RawPath = rawPath; Imported = imported; }
@@ -56,17 +56,17 @@ public sealed class EditorHostViewModel(EditorOpenRequest request, ImageEditorSe
     {
         if(Selected?.Draft is null)throw new ArgumentException("Select a readable image before importing an inset.");
         if (Request.InitialPaths.Any(p=>SamePath(p,path)) || Sources.Any(r=>SamePath(r.RawPath,path)))
-            throw new ArgumentException("This image is already an export root. Choose a separate inset image.");
+            throw new ArgumentException("This image is already included. Choose another inset image.");
         var existing=auxiliaryImports.FirstOrDefault(i=>SamePath(i.Source.Path,path));
 
         var capture=(await services.Sources.CaptureAsync([path],ct)).Single();
-        var source=capture.Snapshot??throw new IOException(capture.Error??"Inset capture failed.");
+        var source=capture.Snapshot??throw new IOException(capture.Error??"Could not load inset image.");
         await services.InspectAsync(source,ct);ct.ThrowIfCancellationRequested();
         if(existing is not null)
         {
             if(existing.Source.Sha256.Equals(source.Sha256,StringComparison.OrdinalIgnoreCase)&&existing.Source.Length==source.Length){return existing.Source;}
             if(Sources.Any(r=>r.Draft is {} d&&EditorRecipeReferences.Sources(d.Recipe).Contains(existing.Source.Id)))
-                throw new ArgumentException("Inset content changed. Delete its existing layers, then explicitly import it again.");
+                throw new ArgumentException("Inset image changed. Delete its layers, then import it again.");
             auxiliaryImports.Remove(existing);
         }
         auxiliaryImports.Add(new(source,EditorImportRole.Auxiliary));return source;
@@ -92,7 +92,7 @@ public sealed class EditorHostViewModel(EditorOpenRequest request, ImageEditorSe
         foreach (string path in paths)
         {
             ct.ThrowIfCancellationRequested();
-            if (auxiliaryImports.Any(i=>SamePath(i.Source.Path,path)))throw new ArgumentException("This file is already an auxiliary inset. Choose a different image to add as a root.");
+            if (auxiliaryImports.Any(i=>SamePath(i.Source.Path,path)))throw new ArgumentException("This image is already used as an inset. Choose another image.");
             if (Sources.Any(r => SamePath(r.RawPath,path)))
                 throw new ArgumentException("This file is already listed: " + path);
             var row = new EditorSourceRow(path, imported); Sources.Add(row);
@@ -167,7 +167,7 @@ public sealed class EditorHostViewModel(EditorOpenRequest request, ImageEditorSe
     }
     public void Change(EditorDocument document, bool transient = false)
     {
-        var row = Selected ?? throw new InvalidOperationException("Select a readable source.");
+        var row = Selected ?? throw new InvalidOperationException("Select an image.");
         Validate(document, row.Size);
         if (!transient) { row.History!.Commit(document, Guid.NewGuid().ToString()); row.Draft = row.History.Current; row.Dirty = true; }
         else row.Draft = document;
@@ -196,7 +196,7 @@ public sealed class EditorHostViewModel(EditorOpenRequest request, ImageEditorSe
     }
     public void ApplyToAll(ImageBatchGeometry geometry, ImageResizeIntent? resize)
     {
-        CommitGesture(); var selected = Selected ?? throw new InvalidOperationException("Select a readable source.");
+        CommitGesture(); var selected = Selected ?? throw new InvalidOperationException("Select an image.");
         var template = new ImageBatchTemplate(selected.Draft!, selected.Size, geometry, resize, false, true);
         // Prepare and validate every participating document before changing any history.
         var mapped = Sources.Where(r => r.Included && r != selected).Select(r =>
@@ -214,7 +214,7 @@ public sealed class EditorHostViewModel(EditorOpenRequest request, ImageEditorSe
         if (included.Length == 0) throw new ArgumentException("Include at least one image.");
         foreach (var row in included)
         {
-            if (row.Error is not null || row.Draft is null || row.Source is null) throw new ArgumentException(row.Label + ": " + (row.Error ?? "Capture did not finish.") + " Exclude it explicitly to continue.");
+            if (row.Error is not null || row.Draft is null || row.Source is null) throw new ArgumentException(row.Label + ": " + (row.Error ?? "Image did not finish loading.") + " Exclude it to continue.");
             Validate(row.Draft, row.Size);
         }
         var batch = new EditorSubmissionBatch(Request,

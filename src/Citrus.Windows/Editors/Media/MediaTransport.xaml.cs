@@ -208,7 +208,7 @@ public partial class MediaTransport : UserControl
         catch (AudioDeviceUnavailableException) when (videoMode && document?.Recipe is VideoRecipe && controller is not null && !lifetime.IsCancellationRequested)
         {
             silentPreview = true;
-            PreviewNotice = "Audio output is unavailable. Preview plays silently; saved audio is unchanged.";
+            PreviewNotice = "Audio output unavailable. Preview plays silently; saved audio is unchanged.";
             try
             {
                 var at = controller.Position.CompareTo(range.End) < 0 ? controller.Position : range.Start;
@@ -227,9 +227,9 @@ public partial class MediaTransport : UserControl
         var state = controller.State;
         Status.Text = presentationError ?? (state switch
         {
-            MediaPlaybackState.Preparing => videoMode ? "Updating preview…" : "Preparing local audition…",
+            MediaPlaybackState.Preparing => videoMode ? "Updating preview…" : "Preparing preview…",
             MediaPlaybackState.Failed => controller.Error?.Message ?? "Playback failed.",
-            _ => videoMode && PreviewNotice is not null ? PreviewNotice : $"{state} · {(Original.IsChecked == true ? "Original effects bypass" : "Edited")}"
+            _ => videoMode && PreviewNotice is not null ? PreviewNotice : state.ToString()
         });
         // Video messages belong to the picture, so preparing/error/notice changes never
         // resize the image, the trim strip or the transport. Audio retains its footer row.

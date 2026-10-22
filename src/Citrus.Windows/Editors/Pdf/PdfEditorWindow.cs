@@ -96,11 +96,17 @@ public sealed class PdfEditorWindow : Window
         apply.SetResourceReference(StyleProperty,"PrimaryButton");
         apply.Click+=(_,_)=>Apply();reset.Click+=(_,_)=>Reset();sourcePicker.SelectionChanged+=(_,_)=>SelectSource();pages.SelectionChanged+=(_,_)=>QueuePreview();
         pages.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler((_,e)=>{firstVisiblePage=Math.Max(0,(int)e.VerticalOffset);thumbnailGeneration++;QueueThumbnails();}));
-        PreviewKeyDown+=(_,e)=> { if(e.Key==Key.Z && Keyboard.Modifiers==ModifierKeys.Control) { Undo();e.Handled=true; } else if(e.Key==Key.Y && Keyboard.Modifiers==ModifierKeys.Control) { Redo();e.Handled=true; } else if(e.Key==Key.Delete && !metadata.Values.Any(t=>t.IsKeyboardFocusWithin)) { RemovePages();e.Handled=true; } };
+        PreviewKeyDown+=(_,e)=>
+        {
+            if(e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase || Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase)return;
+            if(e.Key==Key.Z && Keyboard.Modifiers==ModifierKeys.Control) { Undo();e.Handled=true; }
+            else if(e.Key==Key.Y && Keyboard.Modifiers==ModifierKeys.Control) { Redo();e.Handled=true; }
+            else if(e.Key==Key.Delete && pages.IsKeyboardFocusWithin) { RemovePages();e.Handled=true; }
+        };
         Closing+=(_,e)=>
         {
             if(dirty && accepted is null && !discardRequested && !lifetime.IsCancellationRequested)
-            { e.Cancel=true;discardRequested=true;error.Text="Discard these changes? Close again to discard, or keep editing.";return; }
+            { e.Cancel=true;discardRequested=true;error.Text="Close again to discard unsaved changes.";return; }
             closing=true;lifetime.Cancel();
         };
         WindowChromeSetup.Apply(this);(Application.Current as App)?.AttachPresentation(this,surface);
@@ -151,7 +157,6 @@ public sealed class PdfEditorWindow : Window
         {
             controls.Children.Add(new TextBlock { Text="Search metadata",Margin=new(0,0,0,4) });var search=new TextBox { Margin=new(0,0,0,8) };AutomationProperties.SetName(search,"Search metadata");controls.Children.Add(search);
             var rows=new StackPanel();controls.Children.Add(rows);
-            rows.Children.Add(new TextBlock { Text="PDF descriptive metadata",FontWeight=FontWeights.SemiBold,Margin=new(0,8,0,8) });
             foreach(var field in information[selectedSource].Metadata)
             {
                 var row=new DockPanel { Margin=new(0,4,0,4),Tag=field.Key };var label=new TextBlock { Text=field.DisplayName,Width=100,VerticalAlignment=VerticalAlignment.Center };row.Children.Add(label);
@@ -187,8 +192,7 @@ public sealed class PdfEditorWindow : Window
                 try {metadataPolicy=MetadataPolicy.StripAll;foreach(var field in metadata) {if(!removed.Contains(field.Key))metadataBeforeRemoval[(selectedSource,field.Key)]=field.Value.Text;field.Value.Text="";removed.Add(field.Key);}RefreshMetadataRemoval();}
                 finally {synchronizingControls=false;}
                 MarkDirty();
-            };controls.Children.Add(removeAll);
-            controls.Children.Add(new TextBlock { Text="Remove All clears supported descriptive PDF metadata. Required PDF structure remains.",TextWrapping=TextWrapping.Wrap,Margin=new(0,8,0,0) });
+            };removeAll.ToolTip="Remove descriptive metadata";controls.Children.Add(removeAll);
             return;
         }
         if(tool=="Compress")
@@ -201,10 +205,10 @@ public sealed class PdfEditorWindow : Window
                 long original=sources.First(s=>s.Id==selectedSource).Length;
                 string target=compressionMode.SelectedIndex switch
                 {
-                    0 when decimal.TryParse(amount.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var entered)&&entered>0&&entered<100=>$"Output will be at most {decimal.Floor(original*(1-entered/100)):N0} bytes. Unreachable targets save no output.",
+                    0 when decimal.TryParse(amount.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var entered)&&entered>0&&entered<100=>$"Maximum: {decimal.Floor(original*(1-entered/100)):N0} bytes. No output if the target cannot be met.",
                     0=>"Choose a reduction between 0 and 100 percent.",
-                    1=>"Target size uses KB. Unreachable targets save no output.",
-                    _=>"Quality controls JPEG page images, rather than a byte target. Enable page image rebuilding below; this removes editable PDF content."
+                    1=>"Target in KB. No output if the target cannot be met.",
+                    _=>"Enable page image rebuilding to use quality."
                 };
                 explanation.Text=$"Original size: {original:N0} bytes. {target}";MarkDirty();
             }
@@ -215,7 +219,7 @@ public sealed class PdfEditorWindow : Window
         }
         var toolbar=new WrapPanel();controls.Children.Add(toolbar);
         Add("Move up",()=>Move(-1));Add("Move down",()=>Move(1));Add("Rotate",Rotate);Add("Duplicate",Duplicate);Add("Remove",RemovePages);Add("Undo",Undo);Add("Redo",Redo);
-        if(tool=="Split") { mode=PdfOutputMode.SeparatePageDocuments;controls.Children.Add(new TextBlock { Text="Pages to split (blank means the retained pages)",Margin=new(0,12,0,4) });controls.Children.Add(selection); }
+        if(tool=="Split") { mode=PdfOutputMode.SeparatePageDocuments;controls.Children.Add(new TextBlock { Text="Pages to split (blank = all retained)",Margin=new(0,12,0,4) });controls.Children.Add(selection); }
         if(request.Operation.Id=="pdf.images") mode=PdfOutputMode.PageImages;
         if(request.Operation.Id=="pdf.text") mode=PdfOutputMode.Text;
         void Add(string label,Action action) { var button=new Button { Content=label,Margin=new(0,0,8,8) };button.SetResourceReference(StyleProperty,"SecondaryButton");button.Click+=(_,_)=>action();toolbar.Children.Add(button);editingButtons.Add(button); }
@@ -248,7 +252,7 @@ public sealed class PdfEditorWindow : Window
     private void RefreshTechnicalProperties()
     {
         if(technicalProperties is null||!information.TryGetValue(selectedSource,out var info))return;
-        technicalProperties.Text=$"Technical properties · Read only\nPages: {info.PageCount:N0}\nOriginal size: {sources.First(s=>s.Id==selectedSource).Length:N0} bytes";
+        technicalProperties.Text=$"Pages: {info.PageCount:N0}\nSize: {sources.First(s=>s.Id==selectedSource).Length:N0} bytes";
     }
     private void RefreshMetadataRemoval()
     {
@@ -353,7 +357,7 @@ public sealed class PdfEditorWindow : Window
                 if(!decimal.TryParse(amount.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out decimal value)) throw new ArgumentException("Enter a valid compression amount.");
                 goal=compressionMode.SelectedIndex switch { 0 when value>0&&value<100=>new ReductionGoal(value),1 when value>0=>new ByteGoal(checked((long)(value*1024))),2 when value>=1&&value<=100=>new QualityGoal((int)value),_=>throw new ArgumentException("Percentage must be between 0 and 100; size must be positive; quality must be 1–100.") };
                 if(goal is QualityGoal && pdfCompression!=PdfCompressionMode.RasterRebuild)
-                    throw new ArgumentException("Quality requires page image rebuilding. Enable it explicitly, or choose Percentage or Target size to retain editable PDF structure.");
+                    throw new ArgumentException("Enable page image rebuilding for Quality, or use Percentage or Target size to keep editable content.");
             }
             var items=ImmutableArray.CreateBuilder<EditorSubmissionItem>();var included=ImmutableArray.CreateBuilder<Guid>();
             var groups=request.Operation.IsGroup?new[] { Current() }:sources.Select(s=>perSource[s.Id]).ToArray();

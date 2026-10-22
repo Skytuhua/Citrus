@@ -28,7 +28,7 @@ public sealed class VideoCropWindowTests(DesktopFixture desktop)
         using var files = new Fixture(); await files.InitializeAsync(audioSeconds: 1, audioChannels: 6);
         await Show(files, async window =>
         {
-            Assert.Contains("surround", ((TextBlock)window.FindName("PlaybackNotice")).Text);
+            Assert.Contains("surround", ((TextBlock)window.FindName("PlaybackNotice")).Text, StringComparison.OrdinalIgnoreCase);
             var playback = ((VideoCropWindow)window).Playback!;
             Click(window, "PlayButton");
             await Wait(() => playback.State == MediaPlaybackState.Playing && playback.Position.CompareTo(new(1, 10)) > 0);

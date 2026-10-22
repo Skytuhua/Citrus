@@ -47,9 +47,9 @@ public sealed class HostBackdropProbeTests(DesktopFixture desktop)
             Assert.Equal(BackdropState.Solid, scene.Wheel.MaterialState);
             Assert.NotEqual(0, BackdropNativeMethods.GetWindowLongPtr(scene.WheelHandle, -20).ToInt64() & BackdropNativeMethods.WsExLayered);
             var presentation = (Canvas)scene.Wheel.FindName("Presentation");
-            var hub = presentation.Children.OfType<System.Windows.Shapes.Ellipse>().Single();
-            AssertReadableBacking(hub.Fill);
-            AssertReadableBacking(((Canvas)scene.Wheel.FindName("Presentation")).Children.OfType<System.Windows.Shapes.Ellipse>().Single().Fill);
+            Assert.Empty(presentation.Children.OfType<System.Windows.Shapes.Ellipse>());
+            Assert.Null(((MaterialSurface)scene.Wheel.FindName("Shell")).Clip);
+            AssertReadableBacking((System.Windows.Media.Brush)scene.Wheel.FindResource("CapsuleBackground"));
             if (!monitor.Decision.RequestNativeAcrylic)
             {
                 // Keep the stricter existing app policy, including build >=22621, despite host API floor22000.

@@ -20,6 +20,7 @@ public sealed class WorkspaceInput(string path) : INotifyPropertyChanged
 public sealed class WorkspaceSelection
 {
     private readonly ObservableCollection<WorkspaceInput> items = [];
+    private readonly HashSet<string> membershipPaths = new(StringComparer.OrdinalIgnoreCase);
     public ReadOnlyObservableCollection<WorkspaceInput> Items { get; }
     public WorkspaceInput? Active { get; private set; }
     public IReadOnlyList<string> IncludedPaths => Array.AsReadOnly(items.Where(item => item.IsIncluded).Select(item => item.Path).ToArray());
@@ -29,7 +30,7 @@ public sealed class WorkspaceSelection
     {
         foreach (string path in paths)
         {
-            if (items.Any(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
+            if (!membershipPaths.Add(path)) continue;
             var item = new WorkspaceInput(path);
             item.PropertyChanged += InclusionChanged;
             items.Add(item);
@@ -45,7 +46,11 @@ public sealed class WorkspaceSelection
     public void Remove(WorkspaceInput input)
     {
         bool wasActive = Active == input;
-        if (!items.Remove(input)) return;
+        int index = items.IndexOf(input);
+        if (index < 0) return;
+        // Collection observers may add the same path again during removal.
+        membershipPaths.Remove(input.Path);
+        items.RemoveAt(index);
         input.PropertyChanged -= InclusionChanged;
         // Bound selectors can clear selection synchronously during CollectionChanged.
         if (wasActive) Active = items.FirstOrDefault();
@@ -54,6 +59,7 @@ public sealed class WorkspaceSelection
     public void Clear()
     {
         foreach (var item in items) item.PropertyChanged -= InclusionChanged;
+        membershipPaths.Clear();
         items.Clear(); Active = null;
         MembershipChanged?.Invoke();
     }

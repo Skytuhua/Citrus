@@ -372,16 +372,14 @@ Function RollbackUpgrade
   Push $UpdateBackupPath
   Call CheckPath
   IfFileExists "$UpdateBackupPath\install-inventory.json" rollback_backup_exists
-  ${If} $UpdateState == "Prepared"
-    Push "$INSTDIR\install-inventory.json"
-    Call HashFile
-    Pop $0
-    ${If} $0 == $UpdateOldInventory
-      Call ClearUpdateJournal
-      StrCpy $UpdateInProgress 0
-      StrCpy $RollbackInProgress 0
-      Return
-    ${EndIf}
+  Push "$INSTDIR\install-inventory.json"
+  Call CheckPath
+  Push "$INSTDIR\install-inventory.json"
+  Call HashFile
+  Pop $0
+  ${If} $0 == $UpdateOldInventory
+    ; A prior rollback may have restored the directory before registration finished.
+    Goto rollback_restore_registration
   ${EndIf}
   Goto rollback_failed
   rollback_backup_exists:
@@ -417,6 +415,8 @@ Function RollbackUpgrade
     ClearErrors
     Rename "$UpdateBackupPath" "$INSTDIR"
     IfErrors rollback_failed
+  rollback_restore_registration:
+    ClearErrors
     WriteRegStr HKCU "${CITRUS_REGKEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKCU "${CITRUS_REGKEY}" "PackageInventory" "$UpdateOldInventory"
     WriteRegStr HKCU "${CITRUS_REGKEY}" "RecoveryIdentity" "$INSTDIR|$UpdateOldInventory"

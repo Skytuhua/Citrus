@@ -64,7 +64,7 @@ public sealed class DocumentConversionEngine(OutputWriter? outputWriter=null,str
             var staged=await sources.StageVerifiedAsync([source],scope,ct).ConfigureAwait(false);string input=staged[source.Id];
             string payload=Path.Combine(scope,"payload");Directory.CreateDirectory(payload);
             string format=request.Operation.OutputExtension![1..],family=request.Operation.Id.Split('.')[0];
-            progress?.Report(new(null,"Converting offline"));
+            progress?.Report(new(null,"Converting…"));
             if(format is "png" or "jpg")
             {
                 string interim=Path.Combine(scope,"pdf");Directory.CreateDirectory(interim);await OfficeAsync(input,"pdf",interim,scope,ct).ConfigureAwait(false);
@@ -127,7 +127,7 @@ public sealed class DocumentConversionEngine(OutputWriter? outputWriter=null,str
         if(result.ExitCode!=0)throw new InvalidDataException($"The isolated document conversion failed with exit code {result.ExitCode} (0x{unchecked((uint)result.ExitCode):X8}). "+result.Log);
     }
     private void RequirePack()
-    {foreach(string file in RequiredPackFiles)if(!File.Exists(Path.Combine(pack,file)))throw new NotSupportedException("The offline document feature pack is missing "+file+". Repair the bundled tools.");}
+    {foreach(string file in RequiredPackFiles)if(!File.Exists(Path.Combine(pack,file)))throw new NotSupportedException("Document tools are missing. Repair Citrus.");}
     private static async Task CopyAsync(string source,string destination,CancellationToken ct)
     {SafeEditorFiles.RejectLinks(source);await using var input=File.OpenRead(source);await using var output=new FileStream(destination,FileMode.CreateNew,FileAccess.Write,FileShare.None);await input.CopyToAsync(output,ct).ConfigureAwait(false);}
     private static void ValidateOutput(string path,string format)

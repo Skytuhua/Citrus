@@ -64,7 +64,7 @@ internal sealed class MaterialSurface : Decorator
     protected override Geometry? GetLayoutClip(Size layoutSlotSize)
     {
         var layoutClip = base.GetLayoutClip(layoutSlotSize);
-        // The layered wheel and its independent native annulus retain their own geometry.
+        // The layered wheel and its circular backing retain their own geometry.
         if (Role == MaterialRole.WheelShell) return layoutClip;
         var contour = Contour(0);
         return layoutClip is null ? contour : new CombinedGeometry(GeometryCombineMode.Intersect, contour, layoutClip);
@@ -118,12 +118,7 @@ internal sealed class MaterialSurface : Decorator
     {
         var rect = new Rect(inset, inset, Math.Max(0, ActualWidth - inset * 2), Math.Max(0, ActualHeight - inset * 2));
         if (Role == MaterialRole.WheelShell)
-        {
-            if (State is BackdropState.ConfiguredNativeAcrylic or BackdropState.PendingFrosted)
-                dc.DrawGeometry(fill, pen, new CombinedGeometry(GeometryCombineMode.Exclude,
-                    new EllipseGeometry(rect), new EllipseGeometry(new Point(ActualWidth / 2, ActualHeight / 2), 60, 60)));
-            else dc.DrawEllipse(fill, pen, new Point(ActualWidth / 2, ActualHeight / 2), rect.Width / 2, rect.Height / 2);
-        }
+            dc.DrawEllipse(fill, pen, new Point(ActualWidth / 2, ActualHeight / 2), rect.Width / 2, rect.Height / 2);
         else dc.DrawGeometry(fill, pen, Contour(inset));
     }
 }

@@ -15,7 +15,6 @@ public partial class WheelWindow : Window
 {
     private readonly OperationCatalog catalog;
     private static readonly SemaphoreSlim catalogWorkers = new(2);
-    private readonly IFilePreviewService previews;
     private readonly FeedbackAudio audio;
     private readonly bool ownsAudio;
     private CancellationTokenSource? presentationWork;
@@ -79,7 +78,6 @@ public partial class WheelWindow : Window
         captureDragSource = dragSource ?? NativeDragSourceLifetime.Capture;
         this.physicalLeftButtonDown = physicalLeftButtonDown ?? (() =>
             (NativeMethods.GetAsyncKeyState(NativeMethods.GetSystemMetrics(23) != 0 ? 0x02 : 0x01) & 0x8000) != 0);
-        previews = previewService ?? new FilePreviewService();
         this.audio = audio ?? new FeedbackAudio();
         ownsAudio = audio is null;
         InitializeComponent();
@@ -194,18 +192,12 @@ public partial class WheelWindow : Window
     private void UpdateHubPresentation()
     {
         bool target = selected >= 0;
-        bool preview = !target && MaterialState != BackdropState.ConfiguredNativeAcrylic;
-        ThumbnailFrame.Visibility = preview ? Visibility.Visible : Visibility.Hidden;
-        Preview.Visibility = preview && Preview.Source is not null ? Visibility.Visible : Visibility.Hidden;
-        FileGlyph.Visibility = preview && Preview.Source is null ? Visibility.Visible : Visibility.Hidden;
-        CountBadge.Visibility = preview && paths.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
-        Canvas.SetTop(CaptionPlate, target ? 160 : 191);
-        Canvas.SetLeft(CaptionPlate, target ? (WheelGeometry.Width-WheelPresentationMetrics.HubCapsuleWidth)/2 : 130);
-        CaptionPlate.Width = target ? WheelPresentationMetrics.HubCapsuleWidth : 108;
-        CaptionPlate.Height = target ? 48 : 28;
-        CaptionPlate.CornerRadius = new CornerRadius(target ? 24 : 0);
-        if (target) CaptionPlate.SetResourceReference(Border.BackgroundProperty, "CapsuleBackground");
-        else CaptionPlate.Background = Brushes.Transparent;
+        Canvas.SetTop(CaptionPlate, 160);
+        Canvas.SetLeft(CaptionPlate, (WheelGeometry.Width-WheelPresentationMetrics.HubCapsuleWidth)/2);
+        CaptionPlate.Width = WheelPresentationMetrics.HubCapsuleWidth;
+        CaptionPlate.Height = 48;
+        CaptionPlate.CornerRadius = new CornerRadius(24);
+        CaptionPlate.SetResourceReference(Border.BackgroundProperty, "CapsuleBackground");
         if (target && !SystemParameters.HighContrast) CaptionPlate.SetResourceReference(EffectProperty, "WheelCaptionShadow");
         else CaptionPlate.Effect = null;
         WheelTitleTypography.ApplyHub(Caption, textScale);
@@ -221,8 +213,6 @@ public partial class WheelWindow : Window
     private void CancelEmphasis()
     {
         foreach (var petal in petals) petal.CancelEmphasis();
-        PressFeedback.GetAnimator(this)?.CancelOwner(Preview, true);
-        Preview.Opacity = 1;
     }
 
     private void CancelMaterialPresentation()
@@ -298,11 +288,8 @@ public partial class WheelWindow : Window
             presentationEpoch++;
             preparing = false;
             availableOperations.Clear();
-            Preview.Source = null;
             payloadSize = "Choose";
-            FileGlyph.Visibility = Visibility.Visible;
             Caption.Text = payloadSize;
-            Preview.Visibility = FileGlyph.Visibility = Visibility.Visible;
             SetPresentationVisible(false);
         }
         // Prepare content before showing a real capture HWND. Threshold/marquee candidates have
@@ -382,7 +369,6 @@ public partial class WheelWindow : Window
 
     private void UpdatePayloadLabel()
     {
-        CountLabel.Text = paths.Count.ToString();
         Badge.Text = paths.Count == 0 ? "Drag a file here" : preparing ? "Checking available tools" : operations.Count == 0 ? "No supported operations" :
             paths.Count == 1 ? Path.GetFileName(paths[0]) : $"{paths.Count} files";
         ApplyTextScale();
@@ -465,7 +451,7 @@ public partial class WheelWindow : Window
         backdrop.Hide(generation);
         SetMaterialState(BackdropState.Solid);
         SetPresentationVisible(false);
-        Sectors.Children.Clear(); petals.Clear(); Preview.Source = null;
+        Sectors.Children.Clear(); petals.Clear();
         Hide();
         ScheduleDragCapturePreparation();
     }
@@ -634,7 +620,7 @@ public partial class WheelWindow : Window
                 GlassStartupLog.RecordAdmissionIfEnabled(admittedAt, sourceReadyAt, contentReadyAt, targetReadyAt,
                     opticsRequestedAt, System.Diagnostics.Stopwatch.GetTimestamp());
                 _ = PrepareAsync(payload, attributes, generation, presentationWork.Token);
-                _ = PreviewAsync(payload[0], generation, presentationWork.Token);
+                _ = UpdatePayloadSizeAsync(payload[0], generation, presentationWork.Token);
             }
             catch (Exception error) when (error is ExternalException or InvalidOperationException)
             {
@@ -687,14 +673,10 @@ public partial class WheelWindow : Window
         }
     }
 
-    private async Task PreviewAsync(string path, long expected, CancellationToken token)
+    private async Task UpdatePayloadSizeAsync(string path, long expected, CancellationToken token)
     {
         try
         {
-            var image = await previews.LoadAsync(path,192,token);
-            if (token.IsCancellationRequested || !session.IsConfirmed || expected != generation) return;
-            Preview.Source = image;
-            UpdateHubPresentation();
             var size = await Task.Run(() =>
             {
                 try { return File.Exists(path) ? new FileInfo(path).Length : (long?)null; }
@@ -706,11 +688,6 @@ public partial class WheelWindow : Window
                 bytes >= 1_000_000 ? $"{bytes / 1_000_000d:0.#} MB" :
                 bytes >= 1000 ? $"{bytes / 1000d:0.#} KB" : $"{bytes} B" : "Choose";
             if (selected < 0) Caption.Text = payloadSize;
-            if (image is not null && Motion && PressFeedback.GetAnimator(this) is { } animator)
-            {
-                animator.SetImmediate(Preview, "reveal", 0, value => Preview.Opacity = Math.Clamp(value, 0, 1));
-                animator.Retarget(Preview, "reveal", 1, SpringParameters.Reveal, value => Preview.Opacity = Math.Clamp(value, 0, 1));
-            }
             UpdateHubPresentation();
         }
         catch (OperationCanceledException) { }
@@ -864,8 +841,6 @@ public partial class WheelWindow : Window
         NavigationPlate.Visibility = pages.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
         // Bootstrap renders the reusable capsule once. Mask it until paging is
         // available; visibility changes never require another desktop snapshot.
-        var opticalClip = new RectangleGeometry(new Rect(0, 0, 368, pages.Length > 1 ? 454 : 368));
-        opticalClip.Freeze(); GlassBody.Clip = GlassLighting.Clip = opticalClip;
         glass.SetNavigationVisible(pages.Length > 1);
         if (NavigationPlate.IsVisible) NavigationPlate.UpdateLayout();
         Previous.Child.Opacity = paging.Page == 0 ? .35 : 1;

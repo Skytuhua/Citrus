@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Application = System.Windows.Application;
+using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Point = System.Windows.Point;
@@ -46,6 +47,33 @@ public sealed class VisualArtifactsTests(DesktopFixture desktop)
             Assert.Equal(((SolidColorBrush)window.Background).Color, Pixel(bitmap, bitmap.PixelWidth / 2d, bitmap.PixelHeight / 2d));
         }
         finally { window.Close(); themes.Apply(ThemeChoice.Light, reduceMotion: true); }
+    });
+
+    [Theory]
+    [InlineData(1d)]
+    [InlineData(1.5d)]
+    [InlineData(2d)]
+    public Task Fractional_root_rounding_uses_visible_window_pixels_but_rejects_real_overflow(double scale) => desktop.RunAsync(async () =>
+    {
+        var root = new Canvas { Width = 100.25, Height = 100.25, Background = Brushes.Orange };
+        var window = new Window { Width = 100, Height = 100, WindowStyle = WindowStyle.None,
+            AllowsTransparency = true, Background = Brushes.Transparent, Content = root, ShowActivated = false,
+            ResizeMode = ResizeMode.NoResize, UseLayoutRounding = false };
+        try
+        {
+            window.Show();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            var before = root.RenderSize;
+            var bitmap = VisualArtifacts.Render(root, scale);
+            Assert.Equal(before, root.RenderSize);
+            Assert.Equal((int)Math.Ceiling(window.RenderSize.Width * scale), bitmap.PixelWidth);
+            Assert.Equal((int)Math.Ceiling(window.RenderSize.Height * scale), bitmap.PixelHeight);
+            Assert.Equal(Colors.Orange, Pixel(bitmap, bitmap.PixelWidth - 2, bitmap.PixelHeight - 2));
+            root.Width = root.Height = 105;
+            window.UpdateLayout();
+            Assert.ThrowsAny<Exception>(() => VisualArtifacts.Render(root, scale));
+        }
+        finally { window.Close(); }
     });
 
     private static Color Pixel(BitmapSource bitmap, double x, double y)

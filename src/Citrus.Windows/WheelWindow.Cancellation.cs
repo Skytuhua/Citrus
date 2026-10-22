@@ -41,7 +41,7 @@ public partial class WheelWindow
         audio.Stop(); CancelEmphasis();
         glass.Stop(); backdrop.Hide(generation);
         SetPresentationVisible(false);
-        Sectors.Children.Clear(); petals.Clear(); Preview.Source = null;
+        Sectors.Children.Clear(); petals.Clear();
         // Hiding an owner also hides its owned capture. Keep both HWNDs shown until OLE finishes.
         StartCancelDrainProbe();
         // A release may have preceded this right-button callback. Do not wait for
