@@ -1,8 +1,8 @@
 # 0.3 preview notes
 
-Citrus 0.3.0-preview.6 fixes the six repository audit findings and an intermittent installer crash when reading the Windows user identity. Setup reports installed-file verification progress and reuses its hashing provider to shorten the final verification step. The complete package retains preview.5's LZMA compression and every offline engine. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
+Citrus 0.3.0-preview.7 reduces repeated work in large submissions, image editing, PDF thumbnails, audio waveform refreshes and glass presentation. Checked image, PDF and glass output bytes remain unchanged. The [performance record](https://github.com/Skytuhua/Citrus/blob/main/docs/verification/performance-2026-10-22.md) gives the measured workloads, allocation tradeoffs and verification scope. Every offline engine remains included. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
 
-PDF image export now enforces the 32-megapixel limit; plain-text export skips unnecessary artwork recovery while retaining scan OCR. Media and crop editors confirm before discarding edits. Recent history retains 100 completed jobs plus every active job, with virtualized rows. Publishing refuses linked output ancestors. Uninstall also cleans a committed update's previous owned files before removing registration, preserving changed and unknown backup files.
+Preview.6 fixed the six repository audit findings and an intermittent installer crash when reading the Windows user identity. Setup reports installed-file verification progress and reuses its hashing provider to shorten the final verification step. PDF image export enforces the 32-megapixel limit; plain-text export skips unnecessary artwork recovery while retaining scan OCR. Media and crop editors confirm before discarding edits. Recent history retains 100 completed jobs plus every active job, with virtualized rows. Publishing refuses linked output ancestors. Uninstall cleans a committed update's previous owned files before removing registration, preserving changed and unknown backup files. The complete package retains preview.5's LZMA compression.
 
 ## Current boundaries
 
@@ -17,6 +17,12 @@ PDF image export now enforces the 32-megapixel limit; plain-text export skips un
 - Native glass excludes its windows from capture to prevent feedback. Recordings may omit it. Opaque accessibility/device fallbacks remain available.
 
 ## Verification and performance
+
+Preview.7 source verification passed a full Release solution build with zero warnings or errors, 274 core tests, 639 conversion tests with four environment skips, and 63 selected Release Windows tests with no skips or failures. The Windows batch contains 35 glass checks and 28 media checks using unshown controls. Thirteen image/frame fixture hashes, six PDF PNG hashes and 15 glass body/composite hash pairs match their baselines; the decoder follow-up separately verifies exact input/output bytes. These checks do not qualify the full native desktop suite. Packaged smoke checks are qualified separately for the sealed release payload.
+
+The [performance record](https://github.com/Skytuhua/Citrus/blob/main/docs/verification/performance-2026-10-22.md) compares preview.7 source changes with preview.6 commit `1207aeb`. Results apply to the named local workloads, not overall app speed or memory. Decoder allocation and final pixel materialization improved; the total decoder timing comparison does not establish a speed improvement. PDF thumbnail rendering removes temporary disk output with a small managed-allocation increase.
+
+### Historical preview.6 and preview.4 evidence
 
 Preview.6's targeted checks passed 60 PDF tests, 36 desktop regression tests and a final 14-test history/progress/navigation batch. These overlap and must not be summed. A guard-page regression reproduced the old installer identity crash and passed with the bounded copy. Full-inventory probes checked the same 21,560 files before and after the hashing change; elapsed time on this machine fell from 451 to 116 seconds. These are local measurements, not a clean-PC performance guarantee.
 

@@ -29,15 +29,15 @@ public sealed class StudioMaterialIntegrationTests(DesktopFixture desktop)
     });
 
     [Fact]
-    public Task Optical_images_are_below_the_retained_petal_glyphs() => desktop.RunAsync(() =>
+    public Task Optical_image_is_below_the_retained_petal_glyphs() => desktop.RunAsync(() =>
     {
         var wheel = new WheelWindow(new OperationCatalog([]));
         try
         {
             var canvas = (Canvas)wheel.FindName("Presentation");
             var glyphs = (Canvas)wheel.FindName("Sectors");
-            foreach (string image in new[] { "GlassBody", "GlassLighting" })
-                Assert.True(canvas.Children.IndexOf((UIElement)wheel.FindName(image)) < canvas.Children.IndexOf(glyphs));
+            Assert.True(canvas.Children.IndexOf((UIElement)wheel.FindName("GlassBody")) < canvas.Children.IndexOf(glyphs));
+            Assert.Null(wheel.FindName("GlassLighting"));
         }
         finally { wheel.Close(); }
         return Task.CompletedTask;

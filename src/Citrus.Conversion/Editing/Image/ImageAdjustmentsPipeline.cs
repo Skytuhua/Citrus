@@ -58,40 +58,43 @@ public static class ImageAdjustmentsPipeline
             Blend(pixels, median.GetPixels().ToByteArray(PixelMapping.RGBA)!, a.Denoise, ct);
         }
         if (a.BlurSigma > 0) Blend(pixels, Blur(pixels, width, height, a.BlurSigma * renderScale, ct), 1, ct);
-        var unscaled = recipe with { Canvas=null,Geometry = recipe.Geometry with { OutputSize = approximate ? new SizeI(width, height) : null } };
-        // Cache the affine source-coordinate map once; no per-pixel geometry validation.
-        PointD origin = ImageGeometryMapper.MapFromCanvas(unscaled, sourceSize, new(.5, .5));
-        PointD dx = ImageGeometryMapper.MapFromCanvas(unscaled, sourceSize, new(1.5, .5));
-        PointD dy = ImageGeometryMapper.MapFromCanvas(unscaled, sourceSize, new(.5, 1.5));
-        for (int y = 0; y < height; y++)
+        if (a.Vignette != 0 || a.Grain > 0 || (a.Effect != PhotoEffect.None && a.EffectAmount > 0))
         {
-            ct.ThrowIfCancellationRequested();
-            for (int x = 0; x < width; x++)
+            var unscaled = recipe with { Canvas=null,Geometry = recipe.Geometry with { OutputSize = approximate ? new SizeI(width, height) : null } };
+            // Cache the affine source-coordinate map once; no per-pixel geometry validation.
+            PointD origin = ImageGeometryMapper.MapFromCanvas(unscaled, sourceSize, new(.5, .5));
+            PointD dx = ImageGeometryMapper.MapFromCanvas(unscaled, sourceSize, new(1.5, .5));
+            PointD dy = ImageGeometryMapper.MapFromCanvas(unscaled, sourceSize, new(.5, 1.5));
+            for (int y = 0; y < height; y++)
             {
-                int i = (y * width + x) * 4;
-                double r = pixels[i] / 255d, g = pixels[i + 1] / 255d, b = pixels[i + 2] / 255d;
-                double nx = 2 * (x + .5) / width - 1, ny = 2 * (y + .5) / height - 1;
-                double vignette = 1 - a.Vignette * Math.Clamp((nx * nx + ny * ny) / 2, 0, 1);
-                r *= vignette; g *= vignette; b *= vignette;
-                if (a.Grain > 0)
+                ct.ThrowIfCancellationRequested();
+                for (int x = 0; x < width; x++)
                 {
-                    int sx = (int)Math.Floor(origin.X + x * (dx.X - origin.X) + y * (dy.X - origin.X));
-                    int sy = (int)Math.Floor(origin.Y + x * (dx.Y - origin.Y) + y * (dy.Y - origin.Y));
-                    double noise = Noise(sx, sy, a.GrainSeed) * a.Grain * .1; r += noise; g += noise; b += noise;
-                }
-                if (a.EffectAmount > 0)
-                {
-                    double er = r, eg = g, eb = b;
-                    switch (a.Effect)
+                    int i = (y * width + x) * 4;
+                    double r = pixels[i] / 255d, g = pixels[i + 1] / 255d, b = pixels[i + 2] / 255d;
+                    double nx = 2 * (x + .5) / width - 1, ny = 2 * (y + .5) / height - 1;
+                    double vignette = 1 - a.Vignette * Math.Clamp((nx * nx + ny * ny) / 2, 0, 1);
+                    r *= vignette; g *= vignette; b *= vignette;
+                    if (a.Grain > 0)
                     {
-                        case PhotoEffect.Grayscale: er = eg = eb = Luma(r, g, b); break;
-                        case PhotoEffect.Sepia: er = .393 * r + .769 * g + .189 * b; eg = .349 * r + .686 * g + .168 * b; eb = .272 * r + .534 * g + .131 * b; break;
-                        case PhotoEffect.Invert: er = 1 - r; eg = 1 - g; eb = 1 - b; break;
-                        case PhotoEffect.Posterize: er = Math.Round(Clamp(r) * 3, MidpointRounding.AwayFromZero) / 3; eg = Math.Round(Clamp(g) * 3, MidpointRounding.AwayFromZero) / 3; eb = Math.Round(Clamp(b) * 3, MidpointRounding.AwayFromZero) / 3; break;
+                        int sx = (int)Math.Floor(origin.X + x * (dx.X - origin.X) + y * (dy.X - origin.X));
+                        int sy = (int)Math.Floor(origin.Y + x * (dx.Y - origin.Y) + y * (dy.Y - origin.Y));
+                        double noise = Noise(sx, sy, a.GrainSeed) * a.Grain * .1; r += noise; g += noise; b += noise;
                     }
-                    r += (er - r) * a.EffectAmount; g += (eg - g) * a.EffectAmount; b += (eb - b) * a.EffectAmount;
+                    if (a.EffectAmount > 0)
+                    {
+                        double er = r, eg = g, eb = b;
+                        switch (a.Effect)
+                        {
+                            case PhotoEffect.Grayscale: er = eg = eb = Luma(r, g, b); break;
+                            case PhotoEffect.Sepia: er = .393 * r + .769 * g + .189 * b; eg = .349 * r + .686 * g + .168 * b; eb = .272 * r + .534 * g + .131 * b; break;
+                            case PhotoEffect.Invert: er = 1 - r; eg = 1 - g; eb = 1 - b; break;
+                            case PhotoEffect.Posterize: er = Math.Round(Clamp(r) * 3, MidpointRounding.AwayFromZero) / 3; eg = Math.Round(Clamp(g) * 3, MidpointRounding.AwayFromZero) / 3; eb = Math.Round(Clamp(b) * 3, MidpointRounding.AwayFromZero) / 3; break;
+                        }
+                        r += (er - r) * a.EffectAmount; g += (eg - g) * a.EffectAmount; b += (eb - b) * a.EffectAmount;
+                    }
+                    pixels[i] = Byte(r); pixels[i + 1] = Byte(g); pixels[i + 2] = Byte(b);
                 }
-                pixels[i] = Byte(r); pixels[i + 1] = Byte(g); pixels[i + 2] = Byte(b);
             }
         }
         ct.ThrowIfCancellationRequested();

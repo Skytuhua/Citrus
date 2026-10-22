@@ -30,7 +30,7 @@ internal sealed class ChromeGlassController : IDisposable
         Func<GlassScene, int, int, ILiveGlassSession?>? createSession = null, Func<nint[], IDisposable?>? exclude = null)
     {
         this.window = window; this.surface = surface;
-        glass = new(window.Dispatcher, (body, _) => surface.PresentGlass(body), Clear, exclude: exclude, createSession: createSession);
+        glass = new(window.Dispatcher, surface.PresentGlass, Clear, exclude: exclude, createSession: createSession);
         glass.FramePresented = ProtectLabels;
         placement = new(DispatcherPriority.Background, window.Dispatcher) { Interval = TimeSpan.FromMilliseconds(45) };
         placement.Tick += (_, _) => { placement.Stop(); Synchronize(); };

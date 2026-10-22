@@ -14,7 +14,7 @@ public sealed class FrostedStartupTests(DesktopFixture desktop)
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var stages = new List<GlassPresentationStage>();
         int shown = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => shown++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => shown++, () => { },
             exclude: _ => new Lease(), createSession: (scene, _, _) => new Session(scene, gate, entered));
         glass.StageChanged = stages.Add;
         glass.Start(0, 0, 128, false, true, 1);
@@ -36,7 +36,7 @@ public sealed class FrostedStartupTests(DesktopFixture desktop)
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var states = new ConcurrentQueue<GlassFrameState>();
         int shown = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => shown++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => shown++, () => { },
             exclude: _ => new Lease(), createSession: (scene, _, _) => new Session(scene, gate, entered, states));
         glass.Start(0, 0, 128, false, true, 1);
         try
@@ -54,7 +54,7 @@ public sealed class FrostedStartupTests(DesktopFixture desktop)
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var material = GlassPresentationStage.Fallback;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => { },
             () => material = GlassPresentationStage.Fallback,
             exclude: _ => new Lease(), createSession: (scene, _, _) => new Session(scene, gate, entered));
         glass.StageChanged = value => material = value;
@@ -78,7 +78,7 @@ public sealed class FrostedStartupTests(DesktopFixture desktop)
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); gate.SetResult();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var stages = new List<GlassPresentationStage>();
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => { }, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => { }, () => { },
             exclude: _ => new Lease(), createSession: (scene, _, _) => new Session(scene, gate, entered));
         glass.StageChanged = stages.Add;
         glass.SetPetalCount(2); glass.Start(0, 0, 128, false, false, 1);

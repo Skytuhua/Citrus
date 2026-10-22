@@ -5,7 +5,6 @@
   <Canvas x:Name="Presentation" Width="368" Height="454" IsHitTestVisible="False">
    <p:MaterialSurface x:Name="Shell" Role="WheelShell" Width="352" Height="352" Canvas.Left="8" Canvas.Top="8"/>
    <Image x:Name="GlassBody" Width="368" Height="454" Stretch="Fill" Visibility="Collapsed"/>
-   <Image x:Name="GlassLighting" Width="368" Height="454" Stretch="Fill" Visibility="Collapsed"/>
    <Canvas x:Name="Sectors" Width="368" Height="368"/>
    <TextBlock x:Name="ModeLabel" Visibility="Collapsed" ClipToBounds="True" Canvas.Left="154" Canvas.Top="237" Width="60" Height="16" LineHeight="16" LineStackingStrategy="BlockLineHeight" Text="CONVERT" Foreground="{DynamicResource SecondaryText}" FontWeight="SemiBold" FontSize="11" TextAlignment="Center"/>
    <TextBlock x:Name="Badge" Visibility="Collapsed" ClipToBounds="True" Canvas.Left="128" Canvas.Top="214" Width="112" Height="20" LineHeight="20" LineStackingStrategy="BlockLineHeight" Text="Drag a file here" Foreground="{DynamicResource SecondaryText}" FontSize="12" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>

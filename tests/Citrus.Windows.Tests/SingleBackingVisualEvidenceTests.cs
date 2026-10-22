@@ -91,7 +91,7 @@ public sealed class SingleBackingVisualEvidenceTests(DesktopFixture desktop)
         var wheel = new WheelWindow(new OperationCatalog([]));
         var frames = new FrameGate();
         var created = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var live = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => SetMaterial(wheel, BackdropState.LiveRefractiveGlass),
+        using var live = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => SetMaterial(wheel, BackdropState.LiveRefractiveGlass),
             () => SetMaterial(wheel, BackdropState.Solid), exclude: _ => new Lease(), createSession: (scene, _, _) =>
             { created.TrySetResult(); return new ControlledSession(scene, frames); });
         live.StageChanged = stage => SetMaterial(wheel, stage == GlassPresentationStage.Pending ? BackdropState.PendingFrosted :

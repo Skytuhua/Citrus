@@ -37,7 +37,7 @@ public sealed class AnnotationRasterizer
             if(request.SourceTile is {} tile) ImageRecipeRenderer.CropDetail(layer,recipe,sourceSize,tile);
             double scale=Math.Min(1,Math.Min(request.Bounds.Width/(double)layer.Width,request.Bounds.Height/(double)layer.Height));
             if(scale<1) layer.Resize(new MagickGeometry((uint)Math.Max(1,Math.Floor(layer.Width*scale)),(uint)Math.Max(1,Math.Floor(layer.Height*scale))){IgnoreAspectRatio=true});
-            return new(document.Revision,request.Generation,new((int)layer.Width,(int)layer.Height),(int)layer.Width*4,ImmutableArray.CreateRange(layer.GetPixels().ToByteArray(PixelMapping.BGRA)!),null,null,[]);
+            return new(document.Revision,request.Generation,new((int)layer.Width,(int)layer.Height),(int)layer.Width*4,ImmutableCollectionsMarshal.AsImmutableArray(layer.GetPixels().ToByteArray(PixelMapping.BGRA)!),null,null,[]);
         }
         finally { if(Directory.Exists(scope)) Directory.Delete(scope,true); }
     }

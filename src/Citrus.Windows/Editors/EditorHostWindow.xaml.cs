@@ -9,6 +9,7 @@ using Citrus.Conversion;
 using Citrus.Conversion.Editing.Image;
 using Citrus.Core.Editing;
 using Citrus.Windows.Editors.Image;
+using Citrus.Windows.Editors.Media;
 using Microsoft.Win32;
 
 namespace Citrus.Windows.Editors;
@@ -240,7 +241,7 @@ public partial class EditorHostWindow : Window
             var bitmap = await Task.Run(() =>
             {
                 var dpi=ImagePreviewViewport.BitmapDpi(tile is not null,monitorDpi.DpiScaleX,monitorDpi.DpiScaleY);
-                var result = BitmapSource.Create(frame.Size.Width,frame.Size.Height,dpi.X,dpi.Y,PixelFormats.Bgra32,null,frame.Bgra32.ToArray(),frame.Stride);
+                var result = BitmapSource.Create(frame.Size.Width,frame.Size.Height,dpi.X,dpi.Y,PixelFormats.Bgra32,null,MediaPresentation.Pixels(frame),frame.Stride);
                 result.Freeze(); return result;
             }, work.Token);
             if (closed || current != generation || work.IsCancellationRequested) return;

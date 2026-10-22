@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Citrus.Core.Editing;
 
 namespace Citrus.Conversion.Editing.Media;
@@ -24,7 +24,7 @@ public sealed class MediaBinaryDecoder(MediaProcess process)
         long actual=await process.RunBinaryAsync(plan.Arguments,output,bytes,ct).ConfigureAwait(false);
         if(actual!=bytes) throw new MediaProcessException("Unexpected EOF in raw BGRA frame.");
         await VerifyAsync(plan,ct).ConfigureAwait(false);
-        return new(plan.Revision,plan.Generation,size,checked(size.Width*4),ImmutableArray.Create(output.ToArray()),plan.FrameTime,plan.FrameIdentity,[]);
+        return new(plan.Revision,plan.Generation,size,checked(size.Width*4),ImmutableCollectionsMarshal.AsImmutableArray(output.ToArray()),plan.FrameTime,plan.FrameIdentity,[]);
     }
     public Task<AudioPcmInfo> DecodeAudioAsync(MediaGraphPlan plan,string pcmPath,CancellationToken ct)=>DecodeAudioCoreAsync(plan,pcmPath,true,ct);
     internal Task<AudioPcmInfo> DecodeExportAudioAsync(MediaGraphPlan plan,string pcmPath,CancellationToken ct)=>DecodeAudioCoreAsync(plan,pcmPath,false,ct);

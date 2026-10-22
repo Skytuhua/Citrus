@@ -84,14 +84,14 @@ public partial class WheelWindow : Window
         WheelForegroundStyle.Apply(Resources, SystemParameters.HighContrast);
         Width = WheelPresentationMetrics.Width;
         Height = WheelPresentationMetrics.Height;
-        glass = new LiveWheelGlass(Dispatcher, (body, lighting) =>
+        glass = new LiveWheelGlass(Dispatcher, body =>
         {
-            GlassBody.Source = body; GlassLighting.Source = lighting;
-            GlassBody.Visibility = GlassLighting.Visibility = Visibility.Visible;
+            GlassBody.Source = body;
+            GlassBody.Visibility = Visibility.Visible;
         }, () =>
         {
-            GlassBody.Source = GlassLighting.Source = null;
-            GlassBody.Visibility = GlassLighting.Visibility = Visibility.Collapsed;
+            GlassBody.Source = null;
+            GlassBody.Visibility = Visibility.Collapsed;
             SetMaterialState(BackdropState.Solid);
         }, glassSource, createSession: glassSession, bootstrap: bootstrap);
         glass.StageChanged = stage =>

@@ -16,11 +16,9 @@ public sealed class FrostedWheelPresentationTests(DesktopFixture desktop)
         try
         {
             Assert.Null(wheel.FindName("ActionDescription"));
-            foreach (string name in new[] { "GlassBody", "GlassLighting" })
-            {
-                var image = Assert.IsType<System.Windows.Controls.Image>(wheel.FindName(name));
-                Assert.Equal(368, image.Width); Assert.Equal(454, image.Height);
-            }
+            var image = Assert.IsType<System.Windows.Controls.Image>(wheel.FindName("GlassBody"));
+            Assert.Equal(368, image.Width); Assert.Equal(454, image.Height);
+            Assert.Null(wheel.FindName("GlassLighting"));
             var nav = Assert.IsType<Border>(wheel.FindName("NavigationPlate"));
             Assert.Equal(86, Canvas.GetLeft(nav)); Assert.Equal(372, Canvas.GetTop(nav));
             Assert.Equal(196, nav.Width); Assert.Equal(36, nav.Height);

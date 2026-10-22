@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0-preview.7 — 2026-10-22
+
+- Reduced repeated submission checks for large file batches.
+- Removed unnecessary image-processing passes and pixel copies while preserving the checked output bytes.
+- Rendered PDF thumbnails without temporary PNG files and reused verified original audio waveforms during trim and bleep edits.
+- Removed an empty glass bitmap and overlay while preserving the body pixels and retained foreground.
+- Removed unused glass compatibility methods. See the [measured results and verification scope](docs/verification/performance-2026-10-22.md).
+
+## 0.3.0-preview.6 — 2026-10-22
+
+- Fixed an intermittent installer completion crash when reading the Windows user identity. The existing setup wizard now reports installed-file verification progress and reuses its hashing provider.
+- Rejected linked output ancestors during publishing and enforced the 32-megapixel limit for PDF image export.
+- Skipped unnecessary artwork recovery for PDF text export while retaining scan OCR.
+- Added discard confirmation to media and crop editors.
+- Cleaned committed update backups during uninstall while preserving changed and unknown files.
+- Kept 100 completed jobs plus every active job in recent history, with virtualized rows.
+
 ## 0.3.0-preview.5 — 2026-10-22
 
 - Use non-solid LZMA compression for the complete installer to reduce its download size.

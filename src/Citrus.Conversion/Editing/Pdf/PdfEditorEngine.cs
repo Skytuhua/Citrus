@@ -59,25 +59,21 @@ public sealed partial class PdfEngine
     public static async Task<byte[]> RenderPageAsync(string path,int page,int dpi,CancellationToken ct)
     {
         if (page < 1 || dpi is < 36 or > 600) throw new ArgumentOutOfRangeException(nameof(page));
-        string scope=Path.Combine(Path.GetTempPath(),"citrus-pdf-thumbnail-"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(scope);
+        await RenderGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            await RenderGate.WaitAsync(ct).ConfigureAwait(false);
-            try
+            using var source = PdfInput.Open(path);
+            ValidateRasterSize(source.Stream, page, dpi);
+            using var output = new MemoryStream();
+            await Task.Run(() =>
             {
-                using var source = PdfInput.Open(path);
-                ValidateRasterSize(source.Stream, page, dpi);
-                string output=Path.Combine(scope,"page.png");
-                await Task.Run(() =>
-                {
-                    if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux()) PDFtoImage.Conversion.SavePng(output,source.Stream,page-1,leaveOpen:true,options:new RenderOptions(Dpi:dpi,WithAnnotations:true,WithFormFill:true));
-                    else throw new PlatformNotSupportedException("PDF rendering is supported on Windows and Linux.");
-                },ct).ConfigureAwait(false);
-                return await File.ReadAllBytesAsync(output,ct).ConfigureAwait(false);
-            }
-            finally { RenderGate.Release(); }
+                if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux()) PDFtoImage.Conversion.SavePng(output,source.Stream,page-1,leaveOpen:true,options:new RenderOptions(Dpi:dpi,WithAnnotations:true,WithFormFill:true));
+                else throw new PlatformNotSupportedException("PDF rendering is supported on Windows and Linux.");
+            },ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            return output.ToArray();
         }
-        finally { Directory.Delete(scope,true); }
+        finally { RenderGate.Release(); }
     }
 
     private async Task<ConversionResult> ExecuteEditorAsync(OperationRequest request,IProgress<ConversionProgress>? progress,CancellationToken ct)

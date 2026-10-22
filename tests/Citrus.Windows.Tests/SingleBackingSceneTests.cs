@@ -34,7 +34,7 @@ public sealed class SingleBackingSceneTests(DesktopFixture desktop)
     public Task Count_selection_and_pagination_changes_keep_the_live_backing_session() => desktop.RunAsync(async () =>
     {
         int sessions = 0, frames = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => frames++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => frames++, () => { },
             exclude: _ => new Lease(), createSession: (scene, _, _) => { sessions++; return new Session(scene); });
         glass.StartWheelPresentation(0, 0, 184, false, false, 1);
         try

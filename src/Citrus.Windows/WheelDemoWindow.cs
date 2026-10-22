@@ -65,7 +65,7 @@ public sealed class WheelDemoWindow : Window
         center.VerticalAlignment = VerticalAlignment.Center;
         var centerPlate = new Border { Width = WheelPresentationMetrics.HubCapsuleWidth, Height = 48, CornerRadius = new(24), Child = center };
         Canvas.SetLeft(centerPlate, (WheelGeometry.Width-WheelPresentationMetrics.HubCapsuleWidth)/2); Canvas.SetTop(centerPlate, 160); canvas.Children.Add(centerPlate);
-        glass = new LiveWheelGlass(Dispatcher, (body, _) =>
+        glass = new LiveWheelGlass(Dispatcher, body =>
         {
             glassImage.Source = body; glassImage.Visibility = Visibility.Visible;
         }, () =>

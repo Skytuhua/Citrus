@@ -65,15 +65,12 @@ public sealed class WheelCenterBackingTests(DesktopFixture desktop)
                         var presentation = (Canvas)wheel.FindName("Presentation");
                         if (state != BackdropState.LiveRefractiveGlass) AssertFilledCenter(presentation, scale);
                         // Live material is supplied by its optical frame, not the fallback shell.
-                        foreach (string name in new[] { "GlassBody", "GlassLighting" })
-                        {
-                            var image = (Image)wheel.FindName(name);
-                            image.Source = OpaqueFrame(); image.Visibility = Visibility.Visible;
-                        }
+                        var image = (Image)wheel.FindName("GlassBody");
+                        image.Source = OpaqueFrame(); image.Visibility = Visibility.Visible;
                         AssertFilledCenter(presentation, scale);
                         Assert.InRange(Pixel(Render(presentation, scale), 184, 184, scale)[3], 240, 255);
                         Assert.Equal("PNG", ((TextBlock)wheel.FindName("Caption")).Text);
-                        foreach (string name in new[] { "GlassBody", "GlassLighting" }) ((Image)wheel.FindName(name)).Visibility = Visibility.Collapsed;
+                        image.Visibility = Visibility.Collapsed;
                     }
                 }
                 finally { wheel.Close(); }

@@ -122,13 +122,6 @@ internal sealed class StudioGlassRuntime
         }
     }
 
-    /// <summary>Compatibility borrowed pointers; callers must retain ownership while holding GpuGate.</summary>
-    internal (nint Device, nint Context) GetDevice()
-    {
-        lock (DesktopGlassCapturePool.GpuGate)
-        { ObjectDisposedException.ThrowIf(stopped, this); EnsureDevice(); return (device, context); }
-    }
-
     private void EnsureDevice()
     {
         if (device != 0 && Method<DeviceStatus>(device, 39)(device) < 0) ResetCore();

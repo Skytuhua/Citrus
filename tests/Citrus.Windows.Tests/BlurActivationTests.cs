@@ -20,7 +20,7 @@ public sealed class BlurActivationTests(DesktopFixture desktop)
     public Task Repeated_matching_start_retargets_the_pending_capture_instead_of_restarting_it() => desktop.RunAsync(async () =>
     {
         var sessions = new List<Session>();
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => { }, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => { }, () => { },
             exclude: _ => new Lease(), createSession: (scene, x, y) =>
             { var session = new Session(scene, x, y); lock (sessions) sessions.Add(session); return session; });
         glass.StartWheelPresentation(0, 0, 184, false, false, 1);
@@ -45,7 +45,7 @@ public sealed class BlurActivationTests(DesktopFixture desktop)
         void OnPosted(object? sender, DispatcherHookEventArgs e)
         { if (session?.Rendered == true) posted.TrySetResult(e.Operation.Priority); }
         dispatcher.Hooks.OperationPosted += OnPosted;
-        using var glass = new LiveWheelGlass(dispatcher, (_, _) => { }, () => { },
+        using var glass = new LiveWheelGlass(dispatcher, _ => { }, () => { },
             exclude: _ => new Lease(), createSession: (scene, x, y) => session = new Session(scene, x, y) { Ready = true });
         try
         {

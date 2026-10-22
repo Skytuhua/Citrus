@@ -14,8 +14,17 @@ public sealed class BootstrapPresentationTests(DesktopFixture desktop)
         int frames = 0, created = 0;
         bool ready = false;
         byte[]? bootstrap = null;
+        WriteableBitmap? backing = null;
         var stages = new List<string>();
-        using var glass = Create((_, _) => frames++, (scene, _, _) =>
+        using var glass = Create(body =>
+        {
+            backing ??= body;
+            Assert.Same(backing, body);
+            var pixels = new byte[body.PixelWidth * body.PixelHeight * 4];
+            body.CopyPixels(pixels, body.PixelWidth * 4, 0);
+            byte expected = frames++ == 0 ? (byte)135 : (byte)255;
+            Assert.All(pixels, channel => Assert.Equal(expected, channel));
+        }, (scene, _, _) =>
         {
             Assert.Equal(1, frames);
             created++;
@@ -45,7 +54,7 @@ public sealed class BootstrapPresentationTests(DesktopFixture desktop)
         using var release = new ManualResetEventSlim();
         int frames = 0, created = 0;
         byte[]? pixels = null;
-        using var glass = Create((_, _) => frames++, (scene, _, _) => { created++; return new Session(scene, () => false); },
+        using var glass = Create(_ => frames++, (scene, _, _) => { created++; return new Session(scene, () => false); },
             (scene, _, _, _) =>
             {
                 entered.Set(); release.Wait(TimeSpan.FromSeconds(5));
@@ -68,14 +77,14 @@ public sealed class BootstrapPresentationTests(DesktopFixture desktop)
     public Task Generic_content_surfaces_do_not_take_an_admission_snapshot() => desktop.RunAsync(async () =>
     {
         int snapshots = 0, frames = 0;
-        using var glass = Create((_, _) => frames++, (scene, _, _) => new Session(scene, () => true),
+        using var glass = Create(_ => frames++, (scene, _, _) => new Session(scene, () => true),
             (_, _, _, _) => { snapshots++; throw new InvalidOperationException("Only wheel admission may capture a bootstrap."); });
         glass.StartSurface(() => new GlassScene(32, 32, 1, [GlassRegion.Circle(1, 16, 16, 14)]), 0, 0, false, false, 1);
         try { await Until(() => frames > 0); Assert.Equal(0, snapshots); }
         finally { glass.Stop(); await glass.Completion.WaitAsync(TimeSpan.FromSeconds(5)); }
     });
 
-    private static LiveWheelGlass Create(Action<WriteableBitmap, WriteableBitmap> present,
+    private static LiveWheelGlass Create(Action<WriteableBitmap> present,
         Func<GlassScene, int, int, ILiveGlassSession?> session,
         Func<GlassScene, int, int, CancellationToken, byte[]?> bootstrap)
     {

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Citrus.Windows.Presentation;
 
@@ -15,7 +16,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
         var session = new MovingRecordingSession(scene);
         using var posted = new ManualResetEventSlim();
         int shown = 0, publishedX = -1, created = 0;
-        using var glass = new LiveWheelGlass(dispatcher, (body, _) =>
+        using var glass = new LiveWheelGlass(dispatcher, body =>
         {
             shown++;
             var pixel = new byte[4]; body.CopyPixels(new Int32Rect(40, 30, 1, 1), pixel, 4, 0);
@@ -64,7 +65,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
         RecordingSession? session = null;
         GlassFrameState published = default;
         int shown = 0, sceneThread = 0;
-        using var glass = new LiveWheelGlass(dispatcher, (_, _) => shown++, () => { }, exclude: _ => lease,
+        using var glass = new LiveWheelGlass(dispatcher, _ => shown++, () => { }, exclude: _ => lease,
             createSession: (scene, _, _) => session = new RecordingSession(scene));
         glass.FramePresented = (_, _) =>
         {
@@ -109,7 +110,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
         var session = new RecordingSession(scene) { FirstGate = new(), SecondGate = new() };
         using var posted = new ManualResetEventSlim();
         int shown = 0, publishedAccent = 0;
-        using var glass = new LiveWheelGlass(dispatcher, (body, _) =>
+        using var glass = new LiveWheelGlass(dispatcher, body =>
         {
             shown++;
             var pixel = new byte[4]; body.CopyPixels(new Int32Rect(40, 30, 1, 1), pixel, 4, 0);
@@ -150,7 +151,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
     public Task No_capture_starts_when_window_exclusion_fails() => desktop.RunAsync(async () =>
     {
         int created = 0, displayed = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => displayed++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => displayed++, () => { },
             (_, _, _) => { created++; return new FakeSource(); }, _ => null);
         glass.Start(0, 0, 128, false, true, 1);
         await glass.Completion;
@@ -162,10 +163,13 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
     {
         var source = new FakeSource(); var lease = new Lease();
         int displayed = 0, cleared = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (body, light) =>
+        WriteableBitmap? backing = null;
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, body =>
         {
             displayed++;
-            Assert.Equal(128, body.PixelWidth); Assert.Equal(128, light.PixelWidth);
+            backing ??= body;
+            Assert.Same(backing, body);
+            Assert.Equal(128, body.PixelWidth);
             var pixel = new byte[4]; body.CopyPixels(new Int32Rect(0, 0, 1, 1), pixel, 4, 0);
             Assert.Equal(0, pixel[3]);
         }, () => cleared++, (_, _, _) => source, _ => lease);
@@ -183,7 +187,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
     {
         var first = new FakeSource { Gate = new TaskCompletionSource() }; var second = new FakeSource();
         var leases = new List<Lease>(); int creates = 0, displayed = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => displayed++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => displayed++, () => { },
             (_, _, _) => Interlocked.Increment(ref creates) == 1 ? first : second,
             _ => { var lease = new Lease(); leases.Add(lease); return lease; });
         glass.Start(0, 0, 128, false, false, 1);
@@ -203,7 +207,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
     public Task Device_failure_returns_to_fallback_and_disposes_source() => desktop.RunAsync(async () =>
     {
         var source = new FakeSource { Fail = true }; var lease = new Lease(); int shown = 0, cleared = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => shown++, () => cleared++,
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => shown++, () => cleared++,
             (_, _, _) => source, _ => lease);
         glass.Start(0, 0, 128, false, false, 1);
         await glass.Completion.WaitAsync(TimeSpan.FromSeconds(5));
@@ -215,13 +219,13 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
     public Task No_initial_frame_times_out_but_static_desktop_keeps_its_last_valid_frame() => desktop.RunAsync(async () =>
     {
         var empty = new FakeSource { Frames = 0 }; int shown = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => shown++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => shown++, () => { },
             (_, _, _) => empty, _ => new Lease());
         glass.Start(0, 0, 128, false, false, 1);
         await glass.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(0, shown); Assert.True(empty.Disposed); Assert.False(glass.Running);
         var still = new FakeSource { Frames = 1 };
-        using var staticGlass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => shown++, () => { },
+        using var staticGlass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => shown++, () => { },
             (_, _, _) => still, _ => new Lease());
         staticGlass.Start(0, 0, 128, false, false, 1);
         await WaitUntil(() => shown > 0); await Task.Delay(1700);
@@ -233,7 +237,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
     public Task Foreground_count_change_preserves_the_existing_backing_bitmap() => desktop.RunAsync(async () =>
     {
         int shown = 0, cleared = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => shown++, () => cleared++,
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => shown++, () => cleared++,
             (_, _, _) => new FakeSource(), _ => new Lease());
         glass.SetPetalCount(2); glass.Start(0, 0, 128, false, true, 1);
         await WaitUntil(() => shown > 0);
@@ -250,7 +254,7 @@ public sealed class LiveWheelGlassTests(DesktopFixture desktop)
         var source = new FakeSource { Gate = new TaskCompletionSource(), SecondGate = new TaskCompletionSource() };
         using var posted = new ManualResetEventSlim();
         int shown = 0;
-        using var glass = new LiveWheelGlass(dispatcher, (_, _) => shown++, () => { }, (_, _, _) => source, _ => new Lease());
+        using var glass = new LiveWheelGlass(dispatcher, _ => shown++, () => { }, (_, _, _) => source, _ => new Lease());
         void Posted(object? sender, DispatcherHookEventArgs args)
         {
             if (source.Reading && args.Operation.Priority == DispatcherPriority.Render) posted.Set();

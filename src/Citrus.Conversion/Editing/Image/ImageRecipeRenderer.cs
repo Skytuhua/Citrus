@@ -1,5 +1,6 @@
 using PointD = Citrus.Core.Editing.PointD;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Citrus.Core;
 using Citrus.Core.Editing;
 using ImageMagick;
@@ -100,7 +101,7 @@ public sealed class ImageRecipeRenderer : IEditorRenderer, IDisposable, IAsyncDi
                 if (scale < 1) final.Resize(new MagickGeometry((uint)Math.Max(1, Math.Floor(final.Width * scale)), (uint)Math.Max(1, Math.Floor(final.Height * scale))) { IgnoreAspectRatio = true });
                 ct.ThrowIfCancellationRequested();
                 byte[] bytes = final.GetPixels().ToByteArray(PixelMapping.BGRA)!;
-                return new PreviewFrame(document.Revision, request.Generation, new((int)final.Width, (int)final.Height), checked((int)final.Width * 4), ImmutableArray.CreateRange(bytes), null, null, PixelMaskRenderer.Warnings(recipe).AddRange(approximate ? new[] { "Scaled preview; use a 100% source detail tile or export for exact pixels." } : Array.Empty<string>()));
+                return new PreviewFrame(document.Revision, request.Generation, new((int)final.Width, (int)final.Height), checked((int)final.Width * 4), ImmutableCollectionsMarshal.AsImmutableArray(bytes), null, null, PixelMaskRenderer.Warnings(recipe).AddRange(approximate ? new[] { "Scaled preview; use a 100% source detail tile or export for exact pixels." } : Array.Empty<string>()));
             }, ct).ConfigureAwait(false);
         }
         finally { serial.Release(); }

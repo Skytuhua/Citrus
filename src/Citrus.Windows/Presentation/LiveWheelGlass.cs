@@ -15,7 +15,7 @@ internal interface IDesktopGlassSource : IDisposable
 internal sealed class LiveWheelGlass : IDisposable
 {
     private readonly Dispatcher dispatcher;
-    private readonly Action<WriteableBitmap, WriteableBitmap> present;
+    private readonly Action<WriteableBitmap> present;
     private readonly Action fallback;
     private readonly Func<int, int, int, IDesktopGlassSource?>? createSource;
     private readonly Func<GlassScene, int, int, ILiveGlassSession?>? createSession;
@@ -60,7 +60,7 @@ internal sealed class LiveWheelGlass : IDisposable
         activationAdmitted = admitted;
     }
 
-    internal LiveWheelGlass(Dispatcher dispatcher, Action<WriteableBitmap, WriteableBitmap> present, Action fallback,
+    internal LiveWheelGlass(Dispatcher dispatcher, Action<WriteableBitmap> present, Action fallback,
         Func<int, int, int, IDesktopGlassSource?>? createSource = null, Func<nint[], IDisposable?>? exclude = null,
         Func<GlassScene, int, int, ILiveGlassSession?>? createSession = null,
         Func<GlassScene, int, int, CancellationToken, byte[]?>? bootstrap = null)
@@ -222,7 +222,7 @@ internal sealed class LiveWheelGlass : IDisposable
             }
 
             CapturePosition? activePosition = null;
-            WriteableBitmap? bodyImage = null, lightImage = null;
+            WriteableBitmap? bodyImage = null;
             var stale = System.Diagnostics.Stopwatch.StartNew();
             bool haveFrame = false;
             bool startupReported = false;
@@ -277,9 +277,8 @@ internal sealed class LiveWheelGlass : IDisposable
                                         bootstrapNavigation != (Volatile.Read(ref navigationVisible) != 0) ||
                                         bootstrapCaptureRevision != StudioCaptureExclusion.ContentRevision) return;
                                     bodyImage = new WriteableBitmap(nextScene.PixelWidth, nextScene.PixelHeight, 96, 96, PixelFormats.Pbgra32, null);
-                                    lightImage = new WriteableBitmap(nextScene.PixelWidth, nextScene.PixelHeight, 96, 96, PixelFormats.Pbgra32, null);
                                     bodyImage.WritePixels(new Int32Rect(0, 0, nextScene.PixelWidth, nextScene.PixelHeight), pixels, nextScene.PixelWidth * 4, 0);
-                                    present(bodyImage, lightImage);
+                                    present(bodyImage);
                                     PublishStage(GlassPresentationStage.Bootstrap);
                                     ObserveFirstRenderBoundary(expected, requestedAt, admittedAt);
                                     bootstrapPresented = true;
@@ -318,8 +317,8 @@ internal sealed class LiveWheelGlass : IDisposable
                     if (body is null || body.Length != length)
                     {
                         body = new byte[length];
-                        // Reuse the installed bootstrap bitmaps for live publication.
-                        if (!bootstrapPresented) bodyImage = lightImage = null;
+                        // Reuse the installed bootstrap bitmap for live publication.
+                        if (!bootstrapPresented) bodyImage = null;
                     }
                 }
                 else if (!ReferenceEquals(activePosition, expectedPosition))
@@ -387,7 +386,7 @@ internal sealed class LiveWheelGlass : IDisposable
                     var priority = !startupReported || !haveFrame ? DispatcherPriority.Render : DispatcherPriority.Background;
                     var scene = active.Scene;
                     long queuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
-                    // Await consumption before touching either reusable pixel buffer.
+                    // Await consumption before touching the reusable pixel buffer.
                     // Geometry and selection revisions reject obsolete queued frames.
                     await dispatcher.InvokeAsync(() =>
                     {
@@ -399,12 +398,9 @@ internal sealed class LiveWheelGlass : IDisposable
                         double queueMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds;
                         long uiStarted = System.Diagnostics.Stopwatch.GetTimestamp();
                         bodyImage ??= new WriteableBitmap(scene.PixelWidth, scene.PixelHeight, 96, 96, PixelFormats.Pbgra32, null);
-                        lightImage ??= new WriteableBitmap(scene.PixelWidth, scene.PixelHeight, 96, 96, PixelFormats.Pbgra32, null);
                         var bounds = new Int32Rect(0, 0, scene.PixelWidth, scene.PixelHeight);
                         bodyImage.WritePixels(bounds, body!, scene.PixelWidth * 4, 0);
-                        // The compatibility bitmap stays zero-initialized and transparent.
-                        // All optical highlights are already in the body beneath crisp glyphs.
-                        present(bodyImage, lightImage);
+                        present(bodyImage);
                         haveFrame = true;
                         PublishStage(GlassPresentationStage.Live);
                         ObserveFirstRenderBoundary(expected, requestedAt, admittedAt);

@@ -110,7 +110,6 @@ public sealed class WheelPetal : Canvas
         background.StrokeThickness = highContrast ? 1 : 0;
         SetSelected(isSelected, false);
     }
-    internal void SetOpticalLighting(bool enabled) => CancelEmphasis();
     internal void CancelEmphasis()
     {
         PressFeedback.GetAnimator(this)?.CancelOwner(this, false);

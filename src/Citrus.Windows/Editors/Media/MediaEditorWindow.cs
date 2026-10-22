@@ -34,6 +34,7 @@ public sealed class MediaEditorWindow : Window
     private readonly DispatcherTimer previewDelay=new(){Interval=TimeSpan.FromMilliseconds(120)};
     private readonly List<EditorDocument> documents=[];
     private readonly List<EditorDocument> initialDocuments=[];
+    private readonly Dictionary<EditorDocument,ImmutableArray<ImmutableArray<WaveformBucket>>> originalWaveforms=new(ReferenceEqualityComparer.Instance);
     private readonly List<EditorHistory> histories=[];
     private readonly List<SourceSnapshot> sources=[];
     private readonly Dictionary<Guid,Guid?> selectedBleeps=[];
@@ -547,7 +548,7 @@ public sealed class MediaEditorWindow : Window
         {
             var frame=await engine.RenderVisualizationPreviewAsync(value,new(generation,new(720,400),null,null,null),refresh.Token);
             if(generation!=viewGeneration||ticket!=sourceGeneration||closed)return;
-            var image=System.Windows.Media.Imaging.BitmapSource.Create(frame.Size.Width,frame.Size.Height,96,96,PixelFormats.Bgra32,null,frame.Bgra32.ToArray(),frame.Stride);image.Freeze();visualizationPreview.Source=image;
+            var image=System.Windows.Media.Imaging.BitmapSource.Create(frame.Size.Width,frame.Size.Height,96,96,PixelFormats.Bgra32,null,MediaPresentation.Pixels(frame),frame.Stride);image.Freeze();visualizationPreview.Source=image;
         }
         if(value.Recipe is VideoRecipe&&view is not null)
         {
@@ -556,8 +557,17 @@ public sealed class MediaEditorWindow : Window
         if(generation!=viewGeneration||ticket!=sourceGeneration||closed)return;
         if(document.Recipe is not VideoRecipe&&(range is not null||channelViews.Count>0))
         {
-            var waveformDocument=Id is "audio.trim" or "video.trim" or "audio.bleep"?initialDocuments[selected]:value;
-            var rows=await engine.BuildWaveformsAsync(waveformDocument,1024,refresh.Token);if(generation!=viewGeneration||closed)return;
+            bool original=Id is "audio.trim" or "audio.bleep";
+            var waveformDocument=original?initialDocuments[selected]:value;
+            if(original&&originalWaveforms.TryGetValue(waveformDocument,out var rows))
+            {
+                // Display rows stay unchanged by trim/bleep edits; the captured originals must still match.
+                foreach(var source in waveformDocument.Sources)await sessionProbe!.InspectAsync(source,refresh.Token);
+            }
+            else rows=await engine.BuildWaveformsAsync(waveformDocument,1024,refresh.Token);
+            refresh.Token.ThrowIfCancellationRequested();
+            if(generation!=viewGeneration||ticket!=sourceGeneration||closed)return;
+            if(original)originalWaveforms[waveformDocument]=rows;
             if(range is not null&&!rows.IsEmpty){range.Buckets=rows[0];range.InvalidateVisual();}
             for(int i=0;i<Math.Min(rows.Length,channelViews.Count);i++)channelViews[i].Buckets=rows[i];
         }

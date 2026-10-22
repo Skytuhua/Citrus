@@ -8,12 +8,20 @@ namespace Citrus.Windows.Tests;
 public sealed class WheelPerformanceIntegrationTests(DesktopFixture desktop)
 {
     [Fact]
+    public void Controller_publishes_only_the_body_bitmap()
+    {
+        var constructor = Assert.Single(typeof(LiveWheelGlass).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic));
+        var bitmapType = Assert.Single(constructor.GetParameters()[1].ParameterType.GenericTypeArguments);
+        Assert.Equal(typeof(System.Windows.Media.Imaging.WriteableBitmap), bitmapType);
+    }
+
+    [Fact]
     public Task Fresh_bootstrap_does_not_wait_for_retiring_native_capture() => desktop.RunAsync(async () =>
     {
         using var retiring = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         int presentations = 0, creations = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => presentations++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => presentations++, () => { },
             exclude: _ => new Lease(),
             createSession: (scene, _, _) => new HeldSession(scene, Interlocked.Increment(ref creations) == 1 ? retiring : null, release),
             bootstrap: (scene, _, _, _) => Enumerable.Repeat((byte)135, scene.PixelWidth * scene.PixelHeight * 4).ToArray());
@@ -43,7 +51,7 @@ public sealed class WheelPerformanceIntegrationTests(DesktopFixture desktop)
         using var retiring = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         int presentations = 0, creations = 0, exclusions = 0;
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => presentations++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => presentations++, () => { },
             exclude: _ => { Interlocked.Increment(ref exclusions); return new CallbackLease(() => Interlocked.Decrement(ref exclusions)); },
             createSession: (scene, _, _) => new HeldSession(scene, Interlocked.Increment(ref creations) == 1 ? retiring : null, release),
             bootstrap: (scene, _, _, _) => Enumerable.Repeat((byte)135, scene.PixelWidth * scene.PixelHeight * 4).ToArray());
@@ -73,7 +81,7 @@ public sealed class WheelPerformanceIntegrationTests(DesktopFixture desktop)
     {
         int presentations = 0;
         var session = new StagedSession(GlassScene.WheelPresentation(0, 160 / 368d, true));
-        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, (_, _) => presentations++, () => { },
+        using var glass = new LiveWheelGlass(Dispatcher.CurrentDispatcher, _ => presentations++, () => { },
             exclude: _ => new Lease(), createSession: (_, _, _) => session);
         try
         {

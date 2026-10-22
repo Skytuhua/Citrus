@@ -26,10 +26,16 @@ public sealed class SubmissionService(JobQueue queue, Func<SubmissionDraft, Canc
         if (OperationOptionsValidator.GetError(operation, choice.Options, draft.Inspections) is string error)
             throw new ArgumentException(error, nameof(options));
         var requests = BatchRequestBuilder.Build(operation, choice.Inputs, choice.Options, choice.DestinationDirectory);
+        var failures = new Dictionary<string, InputInspection>(StringComparer.Ordinal);
+        if (!operation.IsGroup)
+            foreach (var inspection in draft.Inspections)
+                if (inspection.Error is not null && inspection.Path is not null) failures.TryAdd(inspection.Path, inspection);
         var jobs = new List<ConversionJob>();
         foreach (var request in requests)
         {
-            var failure = draft.Inspections.FirstOrDefault(i => i.Error is not null && request.Inputs.Contains(i.Path));
+            var failure = operation.IsGroup
+                ? draft.Inspections.FirstOrDefault(i => i.Error is not null && request.Inputs.Contains(i.Path))
+                : failures.GetValueOrDefault(request.Inputs[0]);
             jobs.Add(failure is null ? queue.Enqueue(request) : queue.EnqueueFailure(request, new IOException(failure.Error)));
         }
         return jobs.AsReadOnly();
