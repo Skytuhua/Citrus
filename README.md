@@ -40,11 +40,11 @@ Available operations depend on the actual file and codec. PDF reconstruction and
 Move over a choice and release. A key held before dragging also works after the normal Windows drag threshold. Scroll for more wheel pages; gaps retain the last choice, and dropping outside accepts it. The neutral center, Escape or right-click cancels. [Gesture details and settings](docs/QUICKSTART.md#choose-a-task).
 
 <details>
-<summary>View the edited walkthrough (animated)</summary>
+<summary>View PNG → WEBP in four seconds (animated)</summary>
 
-[![Edited Citrus walkthrough using sample files and actual interface exports](docs/launch/2026-10-21/media/wheel-workflow.gif)](https://citrous.app/#product-demo)
+[![Drag sample.png, hold Shift, choose WEBP, and keep the original beside the converted copy](docs/launch/2026-10-21/reference-demo-v3/citrus-reference-4s.gif)](https://citrous.app/#product-demo)
 
-This demonstration uses exports of the actual Citrus interface. Composited wheel sequences are not a real-time Explorer recording or a performance benchmark. [Watch the 10-second launch film](https://citrous.app/assets/launch-v1/citrus-launch-10s.mp4).
+The current Citrus wheel and a real PNG → WEBP conversion, composed as an edited demonstration. The original remains untouched. [Watch the four-second video](https://citrous.app/assets/launch-v1/citrus-reference-4s.mp4) · [Media provenance](docs/launch/2026-10-21/reference-demo-v3/README.md).
 
 </details>
 

@@ -1,0 +1,45 @@
+{
+  "version": 3,
+  "description": "Four-second PNG to WEBP edited demonstration",
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "frames": 240,
+    "durationSeconds": 4
+  },
+  "readmeAnimation": {
+    "width": 960,
+    "height": 540,
+    "fps": 30,
+    "frames": 120,
+    "durationSeconds": 4
+  },
+  "assets": [
+    {
+      "file": "citrus-reference-4s.mp4",
+      "bytes": 552754,
+      "sha256": "2613d64a6f742960ad2bf944b760a5f761d93465a348ddb1828119e8b9d0cccb"
+    },
+    {
+      "file": "citrus-reference-4s-silent.mp4",
+      "bytes": 451925,
+      "sha256": "9dd7be899f4e31b7d3f3256f9511a34d2b7f68429d557ca2610588fa4603f2f7"
+    },
+    {
+      "file": "citrus-reference-4s.gif",
+      "bytes": 639886,
+      "sha256": "6cd6a37910a5e33d08412d958576df87b749c3d756ff6231f20b545628bf0892"
+    },
+    {
+      "file": "poster.webp",
+      "bytes": 49310,
+      "sha256": "734e21a4a5480f56d5787b6293fc001f8a174f6343b8cbcd942ad2126279044b"
+    },
+    {
+      "file": "citrus-reference-4s.vtt",
+      "bytes": 502,
+      "sha256": "141c7130089480f2c66e79ab27add1885e3e4d09fa859e0c702c9e8320c5a482"
+    }
+  ]
+}

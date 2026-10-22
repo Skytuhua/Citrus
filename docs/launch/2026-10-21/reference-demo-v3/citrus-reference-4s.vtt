@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00.000 --> 00:00.500
+The original sample.png image file.
+
+00:00.500 --> 00:01.083
+Select the image and drag its thumbnail.
+
+00:01.083 --> 00:01.783
+Hold Shift to open the image conversion wheel.
+
+00:01.783 --> 00:02.133
+Hover the BMP destination.
+
+00:02.133 --> 00:02.383
+Hover the PDF destination.
+
+00:02.383 --> 00:03.033
+Choose WEBP.
+
+00:03.033 --> 00:03.417
+Release. Citrus shows the real conversion status.
+
+00:03.417 --> 00:04.000
+The original PNG and new sample.webp remain together.
