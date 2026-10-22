@@ -8,7 +8,7 @@ packaging/image/heic-helper.cpp text eol=lf
 packaging/image/build-image-pack.ps1 text eol=lf
 packaging/build-feature-pack.ps1 text eol=lf
 # The runtime catalog pins this worker's original mixed line endings byte-for-byte.
-packaging/feature-pack/office-worker.py -text
+packaging/feature-pack/office-worker.py -text -whitespace
 packaging/patches/** -text
 packaging/notices/media-licenses/** -text
 # Preserve upstream PDF license/notice bytes and hashes across Windows/Linux checkouts.
