@@ -1,10 +1,10 @@
 # Start with Citrus
 
-Download the Windows x64 preview from the [official download page](https://citrous.app/download/). Check the release's size and SHA-256. Both installers are unsigned; a checksum establishes consistency with the published file, not a general guarantee of safety.
+Download the Windows x64 preview from the [official download page](https://citrous.app/download/). Check the release's size and SHA-256. The installer is unsigned; a checksum establishes consistency with the published file, not a general guarantee of safety.
 
 ## Install
 
-Choose **Citrus-Web-Setup.exe** for a small initial download. It needs an internet connection during setup to download the full package, verifies the size and SHA-256, then opens the normal installer. Windows 11 includes the .NET Framework 4.8 runtime used by this downloader. Choose **Citrus-Setup.exe** if you need the complete offline installer instead. Each has its own checksum and current size on the download page.
+Download **Citrus-Setup.exe** and open it to start the standard installation wizard directly. The complete package includes its runtime and conversion engines, so setup needs no Internet connection after the download. Its current size and checksum are on the download page.
 
 Close any running Citrus instance through its tray menu. Run the installer only after reviewing its origin and notices. It installs for your current Windows user under `%LOCALAPPDATA%\Programs\Citrus`; the complete package includes its runtime and offline engines. Read the Windows-component agreement and bundled open-source notices. Citrus works offline after installation. Allow the installed size shown on the download page, plus space for the downloaded installer and temporary files.
 

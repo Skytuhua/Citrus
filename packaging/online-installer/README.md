@@ -1,5 +1,7 @@
 # Citrus online installer
 
+The default user download is the regular **[Citrus-Setup.exe](https://citrous.app/download/)**, which opens the standard installation wizard directly. This optional downloader is retained for compatibility with earlier links.
+
 `Citrus-Web-Setup.exe` is a small Windows GUI that downloads the complete, pinned Citrus installer from the matching GitHub release. It checks the exact byte count and SHA-256 before opening that installer. It accepts no silent-install or payload-override arguments; the normal installer retains its license acceptance, upgrade checks and uninstall behavior.
 
 The browser download is small. Setup downloads the current complete runtime package; the website and version-pinned manifest show its actual size. Internet is required during setup; the installed app then works offline. The complete `Citrus-Setup.exe` remains available for offline or repeated installs. Corresponding third-party sources are available separately on the same release and are not downloaded during installation. Both previews are unsigned.
