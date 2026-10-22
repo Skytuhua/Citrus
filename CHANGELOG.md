@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-preview.3 — 2026-10-21
+
+- Reduced the actual complete installer download by distributing corresponding third-party sources separately and omitting debugging symbols.
+- Preserved every offline runtime engine, license notice and source integrity check. The same release offers the complete source archive, checksums and installed download instructions.
+- Kept the small online installer, full offline installer and existing automatic-update behavior.
+
 ## 0.3.0-preview.2 — 2026-10-21
 
 - Fixed square black corners around the rounded video and audio editor windows.

@@ -4,9 +4,11 @@ Download the Windows x64 preview from the [official download page](https://citro
 
 ## Install
 
-Choose **Citrus-Web-Setup.exe** for a small initial download. It needs an internet connection during setup to download the full package (about 1.30 GB), verifies the size and SHA-256, then opens the normal installer. Windows 11 includes the .NET Framework 4.8 runtime used by this downloader. Choose **Citrus-Setup.exe** if you need the complete offline installer instead. Each has its own checksum on the download page.
+Choose **Citrus-Web-Setup.exe** for a small initial download. It needs an internet connection during setup to download the full package, verifies the size and SHA-256, then opens the normal installer. Windows 11 includes the .NET Framework 4.8 runtime used by this downloader. Choose **Citrus-Setup.exe** if you need the complete offline installer instead. Each has its own checksum and current size on the download page.
 
-Close any running Citrus instance through its tray menu. Run the installer only after reviewing its origin and notices. It installs for your current Windows user under `%LOCALAPPDATA%\Programs\Citrus`; the complete package includes its runtime and offline engines. Read the Windows-component agreement and bundled open-source notices. Citrus works offline after installation. Allow approximately 3.1 GB for the installed pack, plus space for the downloaded installer and temporary files.
+Close any running Citrus instance through its tray menu. Run the installer only after reviewing its origin and notices. It installs for your current Windows user under `%LOCALAPPDATA%\Programs\Citrus`; the complete package includes its runtime and offline engines. Read the Windows-component agreement and bundled open-source notices. Citrus works offline after installation. Allow the installed size shown on the download page, plus space for the downloaded installer and temporary files.
+
+Corresponding third-party sources and rebuild inputs are a separate free download on the same release. The installed `SOURCE-DOWNLOADS.md` gives their exact URL, checksum and preserved source paths. This source download is not needed for normal installation or use.
 
 ## Choose a task
 

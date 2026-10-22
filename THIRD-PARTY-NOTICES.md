@@ -1,8 +1,14 @@
 # Third-party software in Citrus
 
-The installer carries the same `notices/`, provenance manifests and corresponding
-source archives as its self-contained payload. These include
-`source/citrus-media-source.tar.gz`, `source/image/` and `source/feature-pack/`.
+The installer carries the component `notices/` and provenance manifests.
+Corresponding sources and rebuild inputs are freely available as
+`Citrus-ThirdParty-Sources.zip` beside the installer on the same versioned
+[GitHub release](https://github.com/Skytuhua/Citrus/releases).
+The installed `SOURCE-DOWNLOADS.md` and `source-distribution.json` give the exact
+release URL, archive checksum and inventory. The archive preserves paths such as
+`source/citrus-media-source.tar.gz`, `source/image/` and `source/feature-pack/`;
+references to those source paths below and in archived rebuild instructions
+are relative to that source download. It is not required to run Citrus.
 Licenses and conversion engines are bundled locally; conversion does not fetch
 them or a backend at runtime. Citrus's own MIT license is included as `LICENSE`.
 
@@ -41,7 +47,7 @@ archives, Citrus bridge source and exact build script are included in
 `source/image/`. The document engine runtime and source inventories are pinned
 in `feature-pack.lock.json` and `feature-pack-runtime.sha256.json`;
 `notices/Document-Feature-Pack-Notice.txt` explains the app-private deployment.
-The corresponding source archives and rebuild inputs ship with the installer,
+The corresponding source archives and rebuild inputs are in the same-release source download,
 including LibreOffice release, dictionaries, help and translations sources.
 Each component retains its own license and applicable modification and
 redistribution rights.

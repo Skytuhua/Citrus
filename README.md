@@ -6,7 +6,7 @@
 
 <p align="center"><a href="https://github.com/Skytuhua/Citrus/releases"><strong>Download the Windows preview →</strong></a> · <a href="docs/QUICKSTART.md">Quick start</a> · <a href="https://citrous.app">Website</a> · <a href="mailto:leo@citrous.app">Email support</a></p>
 
-<p align="center">Windows x64 · v0.3.0-preview.2 · Unsigned preview · Small online installer</p>
+<p align="center">Windows x64 · v0.3.0-preview.3 · Unsigned preview · Smaller complete download</p>
 
 <p align="center"><a href="https://github.com/Skytuhua/Citrus/actions/workflows/ci.yml"><img src="https://github.com/Skytuhua/Citrus/actions/workflows/ci.yml/badge.svg?branch=main" alt="Source build and core contracts"></a> · <a href="LICENSE">MIT application license</a></p>
 
@@ -63,7 +63,9 @@ Drag trim or crop handles, scrub to a moment, and step through source frames.
 2. Verify that the release comes from the official Citrus repository before running the installer. It is **unsigned**, so Windows may report an unknown publisher. A matching checksum establishes consistency with the published file, not publisher identity or a guarantee of safety.
 3. Install for your Windows user, open Citrus and add a local file. Review the resulting copy, especially after lossy conversion or document reconstruction.
 
-Windows 11 x64 is recommended; the technical minimum is Windows 10 build 19041. No macOS, Linux or native ARM64 installer is supplied. The online installer uses Windows' included .NET Framework 4.8 and downloads the complete **1.30 GB** package during setup, verifies its size and SHA-256, then opens the normal installation wizard. Citrus works offline after installation. The full package includes the runtime and offline engines; the expanded pack is approximately **3.1 GB**. Allow extra space for the temporary download and installation. See the [download page](https://citrous.app/download/) for release details.
+Windows 11 x64 is recommended; the technical minimum is Windows 10 build 19041. No macOS, Linux or native ARM64 installer is supplied. The online installer uses Windows' included .NET Framework 4.8 and downloads the complete package during setup, verifies its size and SHA-256, then opens the normal installation wizard. Citrus works offline afterward, with all conversion engines included. See the [download page](https://citrous.app/download/) for current transfer and installed sizes, and allow extra space for temporary files.
+
+Third-party sources and rebuild inputs are available separately as **[Citrus-ThirdParty-Sources.zip](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.3/Citrus-ThirdParty-Sources.zip)** on the same release, with checksums. They are not needed to run Citrus. The installed `SOURCE-DOWNLOADS.md` records their exact version and integrity information. The smaller installer preserves every runtime engine and omits source archives and debugging symbols from the installation.
 
 Closing the launcher leaves Citrus in the tray. Choose **Quit** from the tray to exit before updating or uninstalling. [Installation and uninstall help](docs/QUICKSTART.md).
 

@@ -1,5 +1,10 @@
 Offline document and PDF reconstruction feature pack
 
+All source/ paths below refer to the separate Citrus-ThirdParty-Sources.zip,
+freely available beside the installer on the same versioned release. The
+installed SOURCE-DOWNLOADS.md gives its exact URL and checksum. The source
+download is not needed to run the included offline engines.
+
 LibreOffice 26.8.1.1
 Copyright 2000-2026 LibreOffice contributors. The Document Foundation.
 MPL-2.0 and the additional licenses/notices distributed in

@@ -9,13 +9,16 @@ No GPL or nonfree FFmpeg components are enabled. No software H.264 encoder is
 included. Media Foundation H.264 is an optional operating-system encoder,
 enabled by Citrus only after a successful local encode with -hw_encoding 0.
 
-The accompanying source/citrus-media-source.tar.gz contains actual source trees,
+The same-release Citrus-ThirdParty-Sources.zip contains
+source/citrus-media-source.tar.gz with actual source trees,
 original SHA256-verified source archives, patches, build scripts, configuration,
 toolchain versions, build log, headers and import libraries corresponding to
 these binaries. MinGW-w64 winpthreads is a separately bundled permissive runtime;
 its binary/package hashes are pinned, and its full copyright/license notices
 are included, together with GCC runtime exception notices. Source delivery does not depend on a future source offer.
-See docs/media-engine.md for rebuild and DLL replacement instructions.
+See SOURCE-DOWNLOADS.md for the exact download URL and checksum, and
+docs/media-engine.md for rebuild and DLL replacement instructions. Source paths
+in those archived instructions refer to the separate source archive.
 
 You may modify and replace these LGPL libraries. Citrus imposes no restriction
 on reverse engineering for debugging such modifications. Keep ABI-compatible

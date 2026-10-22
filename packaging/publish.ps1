@@ -13,10 +13,13 @@ try {
     $dotnetCommand = if ($env:DOTNET) { $env:DOTNET } else { 'dotnet' }
     $nsisCommand = if ($env:MAKENSIS) { $env:MAKENSIS } else { 'makensis' }
     $pythonCommand = if ($env:PYTHON) { $env:PYTHON } else { 'python' }
-    foreach ($path in @($payload, $generated)) {
-        if (Test-Path $path) {
-            if ((Get-Item $path).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked output directory' }
-            if ($Phase -ne 'Installer') { Remove-Item -Recurse -Force $path }
+    foreach ($path in @($payload, $generated, (Join-Path $dist 'third-party-sources'),
+                         (Join-Path $dist 'Citrus-ThirdParty-Sources.zip'), (Join-Path $dist 'source-distribution.json'))) {
+        $resolvedOutput = [IO.Path]::GetFullPath($path)
+        if (-not $resolvedOutput.StartsWith([IO.Path]::GetFullPath($dist) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output escaped distribution directory' }
+        if (Test-Path -LiteralPath $resolvedOutput) {
+            if ((Get-Item -LiteralPath $resolvedOutput).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing linked output path' }
+            if ($Phase -ne 'Installer') { Remove-Item -LiteralPath $resolvedOutput -Recurse -Force }
         }
     }
     if ($Phase -ne 'Installer') {

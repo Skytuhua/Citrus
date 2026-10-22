@@ -3,6 +3,12 @@
 *.py text eol=lf
 *.sh text eol=lf
 *.md text eol=lf
+# These exact build sources are pinned or included in the corresponding-source bundle.
+packaging/image/heic-helper.cpp text eol=lf
+packaging/image/build-image-pack.ps1 text eol=lf
+packaging/build-feature-pack.ps1 text eol=lf
+# The runtime catalog pins this worker's original mixed line endings byte-for-byte.
+packaging/feature-pack/office-worker.py -text
 packaging/patches/** -text
 packaging/notices/media-licenses/** -text
 # Preserve upstream PDF license/notice bytes and hashes across Windows/Linux checkouts.

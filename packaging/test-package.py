@@ -9,6 +9,7 @@ import os
 import subprocess
 import hashlib
 import json
+import zipfile
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
@@ -43,7 +44,7 @@ class PackageTests(unittest.TestCase):
                 (repo / 'docs' / name).write_text('Public product documentation.')
             for name in ['windows-acceptance.md', 'verification.md']:
                 (repo / 'docs' / name).write_text('Historical evidence must remain in the source repository.')
-            with patch.object(package, 'REPO', repo), patch.object(package, 'verify'):
+            with patch.object(package, 'REPO', repo), patch.object(package, 'verify'), patch.object(package, 'separate_sources'):
                 package.prepare(payload, generated)
             self.assertEqual(guide, (payload / 'README.md').read_bytes())
             self.assertEqual(license_bytes, (payload / 'LICENSE').read_bytes())
@@ -60,6 +61,13 @@ class PackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=PAYLOAD.parent) as temp:
             root = Path(temp) / 'payload'
             shutil.copytree(PAYLOAD, root, copy_function=os.link)
+            sources = root
+            if not (root / 'source').exists():
+                sources = root.parent / 'third-party-sources'
+                shutil.copytree(PAYLOAD.parent / 'third-party-sources', sources, copy_function=os.link)
+                for name in ['Citrus-ThirdParty-Sources.zip', 'source-distribution.json']:
+                    os.link(PAYLOAD.parent / name, root.parent / name)
+            package.verify(root)
             image_files = json.loads((PAYLOAD / 'image-backend.lock.json').read_bytes())['offlineFeaturePack']['files']
             image_source = next(entry['path'].replace('source/', 'source/image/', 1)
                                 for entry in image_files if entry['path'].startswith('source/'))
@@ -83,7 +91,7 @@ class PackageTests(unittest.TestCase):
                          'DocumentFormat.OpenXml.Framework.dll',
                          'notices/Document-Feature-Pack-Notice.txt']:
                 with self.subTest(name=name):
-                    path = root / name
+                    path = (sources if name.startswith('source/') else root) / name
                     held = path.with_name(path.name + '.held')
                     path.rename(held)
                     try:
@@ -99,7 +107,7 @@ class PackageTests(unittest.TestCase):
                         path.rename(held)
                         try:
                             with self.assertRaises((ValueError, FileNotFoundError)):
-                                package.verify_offline_feature_packs(root)
+                                package.verify_offline_feature_packs(root, sources)
                         finally: held.rename(path)
 
     def test_empty_payload_rejected(self):
@@ -184,6 +192,126 @@ class PackageTests(unittest.TestCase):
         self.assertIn('feature-pack/libreoffice/program/%(Filename)%(Extension)', links)
 
 
+class SourceDistributionTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.dist = Path(self.temp.name)
+        self.root = self.dist / 'payload'
+        self.repo = self.dist / 'repo'
+        self.sources = self.dist / 'third-party-sources'
+        self.root.mkdir()
+        records = {'source/citrus-media-source.tar.gz': b'media source',
+                   'source/image/libheif.tar.gz': b'image source',
+                   'source/image/heic-helper.cpp': b'bridge source',
+                   'source/image/build-image-pack.ps1': b'image builder',
+                   'source/feature-pack/office.tar.xz': b'office source',
+                   'source/feature-pack/build-feature-pack.ps1': b'office builder'}
+        for name, data in records.items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        self.records = records
+        packaging = self.repo / 'packaging'
+        (packaging / 'media').mkdir(parents=True)
+        (packaging / 'image').mkdir()
+        (packaging / 'media/sha256.json').write_text(json.dumps({'source/citrus-media-source.tar.gz': self.digest(records['source/citrus-media-source.tar.gz'])}))
+        image = [{'path': 'source/libheif.tar.gz', **self.record(records['source/image/libheif.tar.gz'])},
+                 {'path': 'heic-helper.cpp', **self.record(records['source/image/heic-helper.cpp'])},
+                 {'path': 'build-image-pack.ps1', **self.record(records['source/image/build-image-pack.ps1'])}]
+        (packaging / 'image-backend.lock.json').write_text(json.dumps({'offlineFeaturePack': {'files': image}}))
+        (packaging / 'feature-pack.lock.json').write_text(json.dumps({'sources': [{'file': 'source/office.tar.xz', **self.record(records['source/feature-pack/office.tar.xz'])}]}))
+        for source, destination in [('source/image/heic-helper.cpp', 'image/heic-helper.cpp'),
+                                    ('source/image/build-image-pack.ps1', 'image/build-image-pack.ps1'),
+                                    ('source/feature-pack/build-feature-pack.ps1', 'build-feature-pack.ps1')]:
+            (packaging / destination).write_bytes(records[source])
+        (self.repo / 'CitrusVersion.props').write_bytes((package.REPO / 'CitrusVersion.props').read_bytes())
+        for name, data in [('LICENSE', b'MIT application license'), ('THIRD-PARTY-NOTICES.md', b'Component notices')]:
+            (self.repo / name).write_bytes(data)
+            (self.root / name).write_bytes(data)
+        self.addCleanup(patch.stopall)
+        patch.object(package, 'REPO', self.repo).start()
+
+    @staticmethod
+    def digest(data): return hashlib.sha256(data).hexdigest()
+
+    def record(self, data): return {'bytes': len(data), 'sha256': self.digest(data)}
+
+    def stage(self):
+        self.assertTrue(hasattr(package, 'separate_sources'), 'Source separation is not implemented')
+        return package.separate_sources(self.root)
+
+    def test_exact_sources_are_separate_and_debug_files_never_become_owned(self):
+        for name in ['Citrus.Windows.pdb', 'Citrus.Core.pdb', 'Citrus.Conversion.pdb', 'libSkiaSharp.pdb']:
+            (self.root / name).write_bytes(b'debug information')
+        (self.root / 'runtime.dll').write_bytes(b'unchanged engine')
+        metadata = self.stage()
+        self.assertFalse((self.root / 'source').exists())
+        owned = package.inventory(self.root)
+        self.assertFalse(any(name.startswith('source/') or name.endswith('.pdb') for name in owned))
+        self.assertEqual(b'unchanged engine', (self.root / 'runtime.dll').read_bytes())
+        self.assertEqual(metadata, json.loads((self.root / 'source-distribution.json').read_text()))
+        self.assertEqual(metadata, json.loads((self.dist / 'source-distribution.json').read_text()))
+        with zipfile.ZipFile(self.dist / 'Citrus-ThirdParty-Sources.zip') as archive:
+            self.assertEqual(set(self.records) | {'LICENSE', 'THIRD-PARTY-NOTICES.md'}, set(archive.namelist()))
+            for name, data in self.records.items(): self.assertEqual(data, archive.read(name))
+        self.assertIn(metadata['archive']['url'], (self.root / 'SOURCE-DOWNLOADS.md').read_text())
+        package.verify_source_distribution(self.root, self.sources)
+        self.assertEqual(metadata, self.stage())
+
+    def test_missing_corrupt_extra_source_and_archive_are_rejected(self):
+        self.stage()
+        source = self.sources / next(iter(self.records))
+        original = source.read_bytes()
+        source.unlink()
+        with self.assertRaises((ValueError, FileNotFoundError)): package.verify_source_distribution(self.root, self.sources)
+        source.write_bytes(b'wrong source')
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+        source.write_bytes(original)
+        extra = self.sources / 'source/unknown.tar.gz'
+        extra.write_bytes(b'not pinned')
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+        extra.unlink()
+        archive = self.dist / 'Citrus-ThirdParty-Sources.zip'
+        archive.write_bytes(b'not the source archive')
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+
+    def test_candidate_cannot_repin_source_metadata_or_use_other_release(self):
+        self.stage()
+        path = self.root / 'source-distribution.json'
+        metadata = json.loads(path.read_text())
+        for field, value in [('url', 'https://example.com/sources.zip'), ('sha256', 'a' * 64), ('bytes', True)]:
+            altered = json.loads(json.dumps(metadata))
+            altered['archive'][field] = value
+            path.write_text(json.dumps(altered))
+            with self.subTest(field=field), self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+        altered = json.loads(json.dumps(metadata))
+        altered['version'] = '0.0.0-preview.1'
+        path.write_text(json.dumps(altered))
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+        path.write_text(json.dumps(metadata))
+        source = self.sources / next(iter(self.records))
+        source.write_bytes(b'repinned malicious source')
+        metadata['files'][next(iter(self.records))] = self.record(source.read_bytes())
+        path.write_text(json.dumps(metadata))
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+
+    def test_linked_source_root_is_rejected(self):
+        self.stage()
+        linked = self.dist / 'linked-source'
+        try: linked.symlink_to(self.sources, target_is_directory=True)
+        except OSError: self.skipTest('Host cannot create symbolic links')
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, linked)
+
+    def test_mixed_inline_sources_and_debug_symbols_are_rejected(self):
+        self.stage()
+        (self.root / 'libSkiaSharp.pdb').write_bytes(b'not a runtime engine')
+        with self.assertRaises(ValueError): package.verify_source_distribution(self.root, self.sources)
+        (self.root / 'libSkiaSharp.pdb').unlink()
+        (self.root / 'source').mkdir()
+        with self.assertRaisesRegex(ValueError, 'Mixed inline'): package.verify(self.root)
+
+
 class OfflineFeaturePackTests(unittest.TestCase):
     """Tiny actual files prove mappings and rejection without native engines or downloads."""
     def setUp(self):
@@ -266,6 +394,14 @@ class OfflineFeaturePackTests(unittest.TestCase):
     def verify(self): package.verify_offline_feature_packs(self.root)
 
     def test_complete_pack_uses_published_mappings(self): self.verify()
+
+    def test_external_feature_sources_remain_bound_to_repository_pins(self):
+        external = self.root.parent / 'sources'
+        external.mkdir()
+        shutil.move(self.root / 'source', external / 'source')
+        package.verify_offline_feature_packs(self.root, external)
+        (external / 'source/image/libheif.tar.gz').write_bytes(b'changed source')
+        with self.assertRaises(ValueError): package.verify_offline_feature_packs(self.root, external)
 
     def test_missing_engine_essential_fails_before_any_large_hashing(self):
         self.verify()

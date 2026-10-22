@@ -1,6 +1,6 @@
 # Citrus for Windows
 
-**0.3.0-preview.1 · Windows x64 · unsigned public preview**
+**0.3.0-preview.3 · Windows x64 · unsigned public preview**
 
 Citrus puts file conversions and small editing tools beside your files. Process
 images, video, audio, PDFs, documents, presentations, spreadsheets, EPUBs,
@@ -30,8 +30,10 @@ for scans, complex tables or fonts. Review the exported copy.
 
 Use `Citrus-Setup.exe` on Windows x64 (Windows 10 build 19041 or later, or
 Windows 11). The self-contained bundle includes .NET and the offline engines;
-it needs several GB of free disk space, including the corresponding third-party
-source archives and notices. No separate Office or codec purchase is required
+it needs several GB of free disk space. Corresponding third-party sources and
+rebuild inputs are a separate free download beside the installer; see the
+installed SOURCE-DOWNLOADS.md for the exact version, URL and checksum.
+No separate Office or codec purchase is required
 for the included operations. Desktop-glass availability depends on Windows,
 hardware and capture permissions; the readable opaque fallback remains available.
 
@@ -70,7 +72,7 @@ releases and issue reports are available in the
 
 Citrus's own code is under the included `LICENSE` (MIT). Other components retain
 their separate licenses in `THIRD-PARTY-NOTICES.md`, `notices/`, the engine trees
-and `source/`. In particular, the Microsoft Windows SDK component terms apply
+and the separate corresponding-source archive. In particular, the Microsoft Windows SDK component terms apply
 only to those unmodified Microsoft components; they do not replace Citrus's MIT
 license or any other open-source permissions.
 

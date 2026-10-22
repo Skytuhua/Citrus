@@ -81,6 +81,23 @@ def installer_file_version(path):
         raise RuntimeError('Installer FileVersion string missing')
     return ctypes.wstring_at(pointer.value)
 
+def source_metadata(dist, version):
+    notice=dist/'source-distribution.json'
+    if not notice.exists():return None
+    value=json.loads(notice.read_text(encoding='utf-8'))
+    record=value.get('archive',{})
+    name='Citrus-ThirdParty-Sources.zip'
+    if (value.get('schema')!=1 or value.get('version')!=version or record.get('file')!=name
+        or record.get('url')!=f'https://github.com/Skytuhua/Citrus/releases/download/v{version}/{name}'
+        or type(record.get('bytes')) is not int or record['bytes']<=0
+        or not isinstance(record.get('sha256'),str) or not re.fullmatch('[0-9a-f]{64}',record['sha256'])
+        or notice.read_bytes()!=(dist/'Citrus-win-x64/source-distribution.json').read_bytes()):
+        raise ValueError('Source release metadata differs from the installed same-version source notice')
+    archive=dist/name
+    if archive.stat().st_size!=record['bytes'] or sha(archive)!=record['sha256']:
+        raise ValueError('Source release archive does not match its installed checksum')
+    return record
+
 def write_release(dist=None, source_commit=None, require_signed=False, allowed_thumbprints=None):
     dist=(Path(dist) if dist else ROOT/'dist').resolve()
     if not dist.is_relative_to(ROOT.resolve()) or not dist.is_dir():raise RuntimeError('Release output must be an existing directory inside this workspace')
@@ -98,13 +115,18 @@ def write_release(dist=None, source_commit=None, require_signed=False, allowed_t
     if committed_props.findtext('./PropertyGroup/Version')!=version:raise RuntimeError('Compiled source commit central version does not match this release')
     manifest={'schema':2,'product':'Citrus','version':version,'platform':'Windows x64','sourceCommit':commit,
               'installer':{'file':setup.name,'bytes':setup.stat().st_size,'sha256':sha(setup),'fileVersion':actual_version,**signature},
-              'payload':{'files':len(inventory),'inventorySha256':sha(payload/'install-inventory.json')},
+              'payload':{'files':len(inventory),'inventorySha256':sha(payload/'install-inventory.json'),
+                         'bytes':sum(path.stat().st_size for path in payload.rglob('*') if path.is_file())},
               'sdkLicenseSha256':sha(ROOT/'packaging/notices/presentation/Windows-SDK-License.rtf'),
               'updatePolicy':'Published versioned GitHub releases only; no update for documentation, website or media changes.',
               'qualification':'Automated packaging checks do not establish clean-machine, physical Explorer, visual or performance acceptance.'}
+    sources=source_metadata(dist,version)
+    if sources is not None:manifest['sources']=sources
     output=dist/'release-manifest.json';output.write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8',newline='\n')
     public=dist/'release';public.mkdir(exist_ok=True)
-    (public/'SHA256SUMS').write_text(manifest['installer']['sha256']+'  Citrus-Setup.exe\n'+sha(output)+'  release-manifest.json\n',encoding='utf-8',newline='\n')
+    sums=manifest['installer']['sha256']+'  Citrus-Setup.exe\n'+sha(output)+'  release-manifest.json\n'
+    if sources is not None:sums+=sources['sha256']+'  '+sources['file']+'\n'+sha(dist/'source-distribution.json')+'  source-distribution.json\n'
+    (public/'SHA256SUMS').write_text(sums,encoding='utf-8',newline='\n')
     print(json.dumps(manifest,indent=2))
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)

@@ -9,6 +9,7 @@ import stat
 from pathlib import Path, PurePosixPath
 import shutil
 import tarfile
+import zipfile
 import xml.etree.ElementTree as ET
 
 REPO = Path(__file__).resolve().parent.parent
@@ -68,8 +69,9 @@ def verify_record(root, name, record):
     if not path.is_file() or sha(path) != digest:
         raise ValueError('Package asset hash mismatch: ' + name)
 
-def verify_offline_feature_packs(root):
+def verify_offline_feature_packs(root, source_root=None):
     """Verify published mappings against repository-pinned provenance, never candidate-provided trust."""
+    source_root = source_root or root
     for name in ['Tesseract.dll', 'Tabula.dll', 'DocumentFormat.OpenXml.dll', 'DocumentFormat.OpenXml.Framework.dll',
                  'image/heic/citrus-heic.exe', 'image/exiftool/exiftool.exe', 'feature-pack/office-worker.py',
                  'feature-pack/libreoffice/program/python.exe', 'feature-pack/libreoffice/program/mergedlo.dll',
@@ -111,7 +113,7 @@ def verify_offline_feature_packs(root):
         else: raise ValueError('Unrecognized image-pack mapping: ' + name)
         if destination.casefold() in seen: raise ValueError('Duplicate image-pack asset: ' + name)
         seen.add(destination.casefold())
-        verify_record(root, destination, entry)
+        verify_record(source_root if destination.startswith('source/') else root, destination, entry)
         if destination.startswith('image/'): expected_image.add(destination)
     runtime = {}
     for entry in catalog['files']:
@@ -127,7 +129,7 @@ def verify_offline_feature_packs(root):
         if not name.startswith('source/') or name.casefold() in source_names:
             raise ValueError('Invalid feature-pack source mapping: ' + name)
         source_names.add(name.casefold())
-        verify_record(root, 'source/feature-pack/' + name[len('source/'):], entry)
+        verify_record(source_root, 'source/feature-pack/' + name[len('source/'):], entry)
     workers = set()
     for entry in lock['trustedWorkers']:
         name = safe(entry['file'])
@@ -140,7 +142,7 @@ def verify_offline_feature_packs(root):
     for source, destination in [('image/heic-helper.cpp', 'source/image/heic-helper.cpp'),
                                 ('image/build-image-pack.ps1', 'source/image/build-image-pack.ps1'),
                                 ('build-feature-pack.ps1', 'source/feature-pack/build-feature-pack.ps1')]:
-        if checked_path(root, destination).read_bytes() != (REPO / 'packaging' / source).read_bytes():
+        if checked_path(source_root, destination).read_bytes() != (REPO / 'packaging' / source).read_bytes():
             raise ValueError('Stale corresponding feature source: ' + destination)
     for name, digest in OCR_NATIVE_HASHES.items(): verify_record(root, name, {'sha256': digest})
     if checked_files(root, 'image') != expected_image:
@@ -155,6 +157,124 @@ def inventory(root):
         if path.is_symlink(): raise ValueError('Links are forbidden in payload: ' + str(path))
         if path.is_file(): result[safe(path.relative_to(root).as_posix())] = sha(path)
     return result
+
+
+def source_records(source_root):
+    """Source trust comes from repository locks and build scripts, not a candidate manifest."""
+    records = {}
+    def add(name, record):
+        safe(name)
+        if not name.startswith('source/') or any(old.casefold() == name.casefold() for old in records):
+            raise ValueError('Invalid or duplicate corresponding source: ' + name)
+        verify_record(source_root, name, record)
+        records[name] = {'bytes': (source_root / name).stat().st_size, 'sha256': record['sha256']}
+    for name, digest in json.loads((REPO / 'packaging/media/sha256.json').read_bytes()).items():
+        if name.startswith('source/'): add(name, {'sha256': digest})
+    image = json.loads((REPO / 'packaging/image-backend.lock.json').read_bytes())['offlineFeaturePack']['files']
+    for entry in image:
+        name = entry['path']
+        if name.startswith('source/'): add('source/image/' + name[len('source/'):], entry)
+        elif name in ('heic-helper.cpp', 'build-image-pack.ps1'): add('source/image/' + name, entry)
+    for entry in json.loads((REPO / 'packaging/feature-pack.lock.json').read_bytes())['sources']:
+        name = safe(entry['file'])
+        if not name.startswith('source/'): raise ValueError('Invalid feature-pack source mapping')
+        add('source/feature-pack/' + name[len('source/'):], entry)
+    add('source/feature-pack/build-feature-pack.ps1', {'sha256': sha(REPO / 'packaging/build-feature-pack.ps1')})
+    for source in ['heic-helper.cpp', 'build-image-pack.ps1']:
+        if records['source/image/' + source]['sha256'] != sha(REPO / 'packaging/image' / source):
+            raise ValueError('Stale corresponding image build source: ' + source)
+    if checked_files(source_root, 'source') != set(records):
+        raise ValueError('Uninventoried or missing corresponding sources')
+    return records
+
+
+def source_notice(metadata):
+    archive = metadata['archive']
+    return ('# Corresponding third-party sources\n\n'
+            'All conversion engines and their license texts remain installed locally.\n'
+            'The complete corresponding source archives and exact build scripts are available, without an account or fee, beside this version of the installer:\n\n'
+            + archive['url'] + '\n\nSHA-256: ' + archive['sha256'] + '\n\n'
+            'Extract Citrus-ThirdParty-Sources.zip to obtain its source/ directory.\n'
+            'Paths beginning source/ in archived build documentation refer to that extracted directory, rather than the installed application.\n'
+            'The replaceable LGPL libraries remain in image/heic; their source and bridge build script are in source/image. You may modify and relink them under their included licenses.\n')
+
+
+def source_bundle_records(source_root):
+    records = source_records(source_root)
+    for name in ['LICENSE', 'THIRD-PARTY-NOTICES.md']:
+        records[name] = {'bytes': (REPO / name).stat().st_size, 'sha256': sha(REPO / name)}
+    return records
+
+
+def verify_source_archive(path, records):
+    with zipfile.ZipFile(checked_path(path.parent, path.name)) as archive:
+        entries = archive.infolist()
+        if len(entries) != len(records) or {entry.filename for entry in entries} != set(records):
+            raise ValueError('Source archive inventory differs from corresponding sources')
+        for entry in entries:
+            safe(entry.filename)
+            expected = records[entry.filename]
+            if stat.S_ISLNK(entry.external_attr >> 16) or entry.file_size != expected['bytes']:
+                raise ValueError('Invalid corresponding-source archive member: ' + entry.filename)
+            digest = hashlib.sha256()
+            with archive.open(entry) as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b''): digest.update(block)
+            if digest.hexdigest() != expected['sha256']:
+                raise ValueError('Changed corresponding-source archive member: ' + entry.filename)
+
+
+def verify_source_distribution(root, source_root=None):
+    source_root = source_root or root.parent / 'third-party-sources'
+    if (root / 'source').exists(): raise ValueError('Separated runtime still contains source archives')
+    if any((root / name).exists() for name in ['Citrus.Windows.pdb', 'Citrus.Core.pdb', 'Citrus.Conversion.pdb', 'libSkiaSharp.pdb']):
+        raise ValueError('Separated runtime still contains debug symbols')
+    records = source_bundle_records(source_root)
+    metadata = json.loads(checked_path(root, 'source-distribution.json').read_bytes())
+    version = ET.parse(REPO / 'CitrusVersion.props').getroot().findtext('./PropertyGroup/Version')
+    archive = root.parent / 'Citrus-ThirdParty-Sources.zip'
+    expected_archive = {'file': archive.name, 'bytes': checked_path(archive.parent, archive.name).stat().st_size,
+                        'sha256': sha(archive),
+                        'url': f'https://github.com/Skytuhua/Citrus/releases/download/v{version}/{archive.name}'}
+    expected = {'schema': 1, 'version': version, 'archive': expected_archive, 'files': records}
+    if metadata != expected or type(metadata['schema']) is not int or type(metadata['archive']['bytes']) is not int:
+        raise ValueError('Invalid corresponding-source distribution metadata')
+    for record in metadata['files'].values():
+        if type(record['bytes']) is not int: raise ValueError('Invalid corresponding-source size')
+    if checked_path(root, 'SOURCE-DOWNLOADS.md').read_text(encoding='utf-8') != source_notice(metadata):
+        raise ValueError('Missing or changed corresponding-source download instructions')
+    verify_source_archive(archive, records)
+    return metadata
+
+
+def separate_sources(root):
+    source_root = root.parent / 'third-party-sources'
+    if not (root / 'source').exists(): return verify_source_distribution(root, source_root)
+    records = source_bundle_records(root)
+    if source_root.exists():
+        if source_bundle_records(source_root) != records: raise ValueError('Different source staging already exists')
+    else:
+        source_root.mkdir()
+        shutil.copytree(root / 'source', source_root / 'source')
+    archive = root.parent / 'Citrus-ThirdParty-Sources.zip'
+    if not archive.exists():
+        with zipfile.ZipFile(archive, 'x', compression=zipfile.ZIP_STORED) as bundle:
+            for name in sorted(records):
+                bundle.write((source_root if name.startswith('source/') else REPO) / name, name)
+    verify_source_archive(archive, records)
+    version = ET.parse(REPO / 'CitrusVersion.props').getroot().findtext('./PropertyGroup/Version')
+    metadata = {'schema': 1, 'version': version,
+                'archive': {'file': archive.name, 'bytes': archive.stat().st_size, 'sha256': sha(archive),
+                            'url': f'https://github.com/Skytuhua/Citrus/releases/download/v{version}/{archive.name}'},
+                'files': records}
+    encoded = json.dumps(metadata, indent=2) + '\n'
+    (root / 'source-distribution.json').write_text(encoded, encoding='utf-8')
+    (root.parent / 'source-distribution.json').write_text(encoded, encoding='utf-8')
+    (root / 'SOURCE-DOWNLOADS.md').write_text(source_notice(metadata), encoding='utf-8')
+    shutil.rmtree(checked_path(root, 'source'))
+    for name in ['Citrus.Windows.pdb', 'Citrus.Core.pdb', 'Citrus.Conversion.pdb', 'libSkiaSharp.pdb']:
+        if (root / name).exists(): checked_path(root, name).unlink()
+    verify_source_distribution(root, source_root)
+    return metadata
 
 def quote(value):
     return '"' + str(value).replace('$', '$$').replace('"', '$\\"') + '"'
@@ -205,7 +325,10 @@ def verification_instructions(files):
                    'StrCmp $0 "' + digest + '" +2', 'Call Fail']
     return '\n'.join(checks) + '\n'
 
-def verify(root):
+def verify(root, source_root=None):
+    if (root / 'source').exists() and (root / 'source-distribution.json').exists():
+        raise ValueError('Mixed inline and separate corresponding-source distributions')
+    source_root = source_root or (root if (root / 'source').exists() else root.parent / 'third-party-sources')
     required = ['Citrus.Windows.exe','Citrus.Windows.dll','Citrus.Core.dll','Citrus.Conversion.dll',
         'Citrus.Windows.deps.json','Citrus.Windows.runtimeconfig.json','hostfxr.dll','hostpolicy.dll','coreclr.dll',
         'System.Private.CoreLib.dll','PresentationFramework.dll','PresentationNative_cor3.dll',
@@ -221,11 +344,12 @@ def verify(root):
     if json.loads((root / 'media-sha256.json').read_bytes()) != media: raise ValueError('Media manifest mismatch')
     for name, digest in media.items():
         destination = name.replace('win-x64/', 'media/', 1)
-        if sha(root / destination) != digest: raise ValueError('Media/source hash mismatch: ' + name)
+        location = source_root if destination.startswith('source/') else root
+        if sha(checked_path(location, destination)) != digest: raise ValueError('Media/source hash mismatch: ' + name)
     for source in (REPO / 'packaging/notices').rglob('*'):
         if source.is_file() and sha(root / 'notices' / source.relative_to(REPO / 'packaging/notices')) != sha(source):
             raise ValueError('Missing/changed license: ' + source.name)
-    with tarfile.open(root / 'source/citrus-media-source.tar.gz', 'r:gz') as archive:
+    with tarfile.open(checked_path(source_root, 'source/citrus-media-source.tar.gz'), 'r:gz') as archive:
         for source, member in [('packaging/build-media.sh','provenance/build-media.sh'),('packaging/media-lock.json','provenance/media-lock.json'),('packaging/verify-media.py','provenance/verify-media.py'),('docs/media-engine.md','provenance/media-engine.md')]:
             if archive.extractfile(member).read() != (REPO / source).read_bytes(): raise ValueError('Stale corresponding source: ' + member)
         for source in (REPO / 'packaging/notices/media-licenses').iterdir():
@@ -233,7 +357,9 @@ def verify(root):
     for script in ['verify-pdf-publish.py','verify-archive-publish.py','verify-presentation-publish.py']:
         import subprocess, sys
         subprocess.run([sys.executable, str(REPO / 'packaging' / script), str(root)], check=True)
-    verify_offline_feature_packs(root)
+    verify_offline_feature_packs(root, source_root)
+    if source_root == root: source_records(root)
+    else: verify_source_distribution(root, source_root)
     inventory(root)
     print('PASS complete application, self-contained runtime, image/Office/EPUB/OCR/PDF/archive/media engines, sources and licenses')
 
@@ -247,6 +373,7 @@ def prepare(root, generated):
     shutil.copytree(REPO / 'packaging/notices', root / 'notices', dirs_exist_ok=True)
     (root / 'install-inventory.json').unlink(missing_ok=True)
     verify(root)
+    separate_sources(root)
     files = inventory(root)
     (root / 'install-inventory.json').write_text(json.dumps(files, indent=2)+'\n', encoding='utf-8')
     files['install-inventory.json'] = sha(root / 'install-inventory.json')
@@ -279,6 +406,8 @@ def verify_prepared(root, generated):
 def checksums(dist):
     files = [dist / 'Citrus-Setup.exe'] + sorted(p for p in (dist / 'Citrus-win-x64').rglob('*') if p.is_file())
     if not files[0].is_file(): raise ValueError('Missing installer')
+    for name in ['Citrus-ThirdParty-Sources.zip', 'source-distribution.json']:
+        if (dist / name).exists(): files.append(checked_path(dist, name))
     (dist / 'SHA256SUMS').write_text(''.join(sha(p)+'  '+p.relative_to(dist).as_posix()+'\n' for p in files), encoding='utf-8')
     print('PASS SHA256SUMS:', len(files), 'artifacts')
 
@@ -287,10 +416,11 @@ if __name__ == '__main__':
     parser.add_argument('command', choices=['verify','prepare','verify-prepared','checksums'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--generated', type=Path, default=REPO / 'dist/nsis')
+    parser.add_argument('--sources', type=Path, help='External staging root containing source/; defaults to the sibling third-party-sources directory')
     args = parser.parse_args()
-    if args.command == 'verify': verify(args.directory)
+    if args.command == 'verify': verify(args.directory, args.sources)
     elif args.command == 'prepare': prepare(args.directory, args.generated)
     elif args.command == 'verify-prepared':
-        verify(args.directory)
+        verify(args.directory, args.sources)
         verify_prepared(args.directory, args.generated)
     else: checksums(args.directory)

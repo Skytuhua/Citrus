@@ -25,6 +25,8 @@ METADATA_SPEC=importlib.util.spec_from_file_location('release_metadata',ROOT/'pa
 metadata=importlib.util.module_from_spec(METADATA_SPEC);METADATA_SPEC.loader.exec_module(metadata)
 
 class InstallerUpdateTests(unittest.TestCase):
+    retired = {'source/test-source.tar.gz': b'old source archive', 'Citrus.Windows.pdb': b'old debug symbols'}
+
     @classmethod
     def setUpClass(cls):
         source = (ROOT / 'packaging/Citrus.nsi').read_text()
@@ -53,6 +55,10 @@ class InstallerUpdateTests(unittest.TestCase):
             (payload / 'Citrus.Windows.exe').write_text('old app' if version == 'old' else 'new app')
             (payload / 'owned.txt').write_text('old payload' if version == 'old' else 'third payload' if version == 'newer' else 'new payload')
             (payload / 'chunks.bin').write_bytes(bytes(range(256))*300)
+            if version == 'old':
+                for name, contents in cls.retired.items():
+                    (payload / name).parent.mkdir(parents=True, exist_ok=True)
+                    (payload / name).write_bytes(contents)
             files = package.inventory(payload)
             (payload / 'install-inventory.json').write_text(json.dumps(files, indent=2) + '\n')
             files['install-inventory.json'] = package.sha(payload / 'install-inventory.json')
@@ -81,6 +87,9 @@ class InstallerUpdateTests(unittest.TestCase):
     def initialize(self):
         self.run_setup('old', '/ACCEPTSDKTERMS=1')
         self.assertEqual((self.install / 'owned.txt').read_text(), 'old payload')
+        for name, contents in self.retired.items():
+            self.assertTrue((self.install / name).is_file(), name)
+            self.assertEqual((self.install / name).read_bytes(), contents)
         (self.install / 'user-keep.txt').write_text('user data')
 
     def parent_args(self, inventory="old"):
@@ -107,6 +116,11 @@ class InstallerUpdateTests(unittest.TestCase):
         backup = Path(self.regvalue('UpdateBackupPath'))
         self.assertEqual((backup / 'owned.txt').read_text(), 'old payload')
         self.assertEqual((backup / 'user-keep.txt').read_text(), 'user data')
+        inventory = json.loads((self.install / 'install-inventory.json').read_text())
+        for name, contents in self.retired.items():
+            self.assertFalse((self.install / name).exists(), name)
+            self.assertNotIn(name, inventory)
+            self.assertEqual((backup / name).read_bytes(), contents)
 
     def test_wrong_parent_start_or_inventory_never_changes_install(self):
         self.initialize()
@@ -131,6 +145,8 @@ class InstallerUpdateTests(unittest.TestCase):
         self.assertEqual(self.regvalue('PackageInventory'), self.hashes['old'])
         self.assertEqual(self.regvalue('RecoveryIdentity'), str(self.install) + '|' + self.hashes['old'])
         self.assertEqual(self.regvalue('UpdateTestRestarted'), 1)
+        for name, contents in self.retired.items():
+            self.assertEqual((self.install / name).read_bytes(), contents)
 
     def test_installed_byte_corruption_rolls_back_before_commit(self):
         self.initialize()
@@ -152,7 +168,11 @@ class InstallerUpdateTests(unittest.TestCase):
         parent.wait()
         self.assertEqual((self.install / 'owned.txt').read_text(), 'new payload')
         self.assertEqual(self.regvalue('UpdateState'), 'Committed')
-        self.assertEqual((Path(self.regvalue('UpdateBackupPath')) / 'user-keep.txt').read_text(), 'user data')
+        backup = Path(self.regvalue('UpdateBackupPath'))
+        self.assertEqual((backup / 'user-keep.txt').read_text(), 'user data')
+        for name, contents in self.retired.items():
+            self.assertFalse((self.install / name).exists(), name)
+            self.assertEqual((backup / name).read_bytes(), contents)
 
     def test_second_changed_update_after_boot_confirmation(self):
         self.initialize()
