@@ -167,13 +167,6 @@ jobs:
             python packaging/release-metadata.py
           }
           if($LASTEXITCODE){throw 'Public release metadata failed'}
-      - name: Build and verify the small unsigned online installer
-        shell: pwsh
-        run: |
-          python packaging/test-online-installer.py
-          if($LASTEXITCODE){throw 'Online installer contracts failed'}
-          python packaging/online-installer/build.py --manifest dist/release-manifest.json --output dist/online-installer
-          if($LASTEXITCODE){throw 'Online installer build failed'}
       - name: Upload complete assets to a draft only
         shell: pwsh
         env:
@@ -191,17 +184,13 @@ jobs:
           }
           gh release upload $env:CITRUS_RELEASE_TAG dist/Citrus-Setup.exe dist/release-manifest.json dist/release/SHA256SUMS dist/Citrus-ThirdParty-Sources.zip dist/source-distribution.json --clobber
           if($LASTEXITCODE){throw 'Complete draft upload failed'}
-          gh release upload $env:CITRUS_RELEASE_TAG dist/online-installer/Citrus-Web-Setup.exe dist/online-installer/web-installer-manifest.json dist/online-installer/SHA256SUMS-web-installer --clobber
-          if($LASTEXITCODE){throw 'Online installer draft upload failed'}
           $release=gh release view $env:CITRUS_RELEASE_TAG --json assets,isDraft | ConvertFrom-Json
+          if(@($release.assets).Count -ne 5){throw 'Draft must contain only the regular installer and its four metadata/source assets'}
           $expected=Get-Content dist/release-manifest.json -Raw | ConvertFrom-Json
           $asset=@($release.assets|Where-Object name -ceq 'Citrus-Setup.exe')
           if($release.isDraft -ne $true -or $asset.Count -ne 1 -or $asset[0].size -ne $expected.installer.bytes -or $asset[0].digest -cne ('sha256:'+$expected.installer.sha256)){throw 'Draft asset digest/size verification failed'}
           $sourceAsset=@($release.assets|Where-Object name -ceq 'Citrus-ThirdParty-Sources.zip')
           if($sourceAsset.Count -ne 1 -or $sourceAsset[0].size -ne $expected.sources.bytes -or $sourceAsset[0].digest -cne ('sha256:'+$expected.sources.sha256)){throw 'Corresponding-source draft digest/size verification failed'}
-          $online=Get-Content dist/online-installer/web-installer-manifest.json -Raw | ConvertFrom-Json
-          $webAsset=@($release.assets|Where-Object name -ceq 'Citrus-Web-Setup.exe')
-          if($webAsset.Count -ne 1 -or $webAsset[0].size -ne $online.installer.bytes -or $webAsset[0].digest -cne ('sha256:'+$online.installer.sha256)){throw 'Online installer draft digest/size verification failed'}
           Write-Output 'Draft is complete. It is intentionally excluded from application update feeds until publication.'
       - uses: actions/upload-artifact@v4
         if: always()
@@ -211,7 +200,5 @@ jobs:
             dist/release-manifest.json
             dist/release/SHA256SUMS
             dist/source-distribution.json
-            dist/online-installer/web-installer-manifest.json
-            dist/online-installer/SHA256SUMS-web-installer
             .local/update-*.log
           if-no-files-found: warn

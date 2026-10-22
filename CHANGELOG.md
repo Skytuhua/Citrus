@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-preview.8 — 2026-10-22
+
+- Use the standard Windows installer directly, without a separate download window.
+- Omit unused Office spelling dictionaries, thesaurus data and help pages while retaining every offline conversion engine, font, hyphenation dictionary and license notice.
+- Skip repeated installer output-folder changes while preserving every file write, error check and installed-file hash verification.
+
 ## 0.3.0-preview.7 — 2026-10-22
 
 - Reduced repeated submission checks for large file batches.

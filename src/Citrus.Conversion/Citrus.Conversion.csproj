@@ -31,6 +31,14 @@
     <Content Include="../../packaging/image/heic-helper.cpp" Link="source/image/heic-helper.cpp" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../packaging/image/build-image-pack.ps1" Link="source/image/build-image-pack.ps1" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../packaging/feature-pack/libreoffice/**/*" Exclude="../../packaging/feature-pack/libreoffice/**/__pycache__/**;../../packaging/feature-pack/libreoffice/**/*.pyc;../../packaging/feature-pack/libreoffice/**/*.msi" Link="feature-pack/libreoffice/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Headless conversion does not expose spellcheck or thesaurus; retain hyphenation data. -->
+    <Content Update="../../packaging/feature-pack/libreoffice/share/extensions/dict-*/**/*">
+      <CopyToPublishDirectory Condition="'%(Extension)' == '.aff' Or ('%(Extension)' == '.dic' And !$([System.String]::Copy('%(Filename)').StartsWith('hyph_'))) Or (('%(Extension)' == '.dat' Or '%(Extension)' == '.idx') And $([System.String]::Copy('%(Filename)').StartsWith('th_')))">Never</CopyToPublishDirectory>
+    </Content>
+    <!-- Headless conversion does not use the offline help site; retain its icon notice. -->
+    <Content Update="../../packaging/feature-pack/libreoffice/help/**/*">
+      <CopyToPublishDirectory Condition="'%(Filename)%(Extension)' != 'COPYING-ICONS'">Never</CopyToPublishDirectory>
+    </Content>
     <!-- Upstream-pinned x64 CRT aliases: app/OCR and the isolated Office executable directory. -->
     <Content Include="../../packaging/feature-pack/libreoffice/System64/*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../packaging/feature-pack/libreoffice/System64/*.dll" Link="feature-pack/libreoffice/program/%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />

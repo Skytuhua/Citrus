@@ -19,6 +19,8 @@ OCR_NATIVE_HASHES = {
     'x64/tesseract50.dll': 'de4d04ec75095374d98f5dd7a60d14d7e2e0f76589db693eccf7ae658be8cb2b',
     'x64/leptonica-1.82.0.dll': 'dfcb3e6ed0b16bc55bfdbcf53543cfe42a354b87c3e35bd3a95eebf005d73e76',
 }
+OFFICE_RUNTIME_CATALOG_SHA256 = 'f375200f6c662724baffa0e4b676b330496270e81c2c3bcd2f71515c8cfc26b4'
+OFFICE_PUBLISH_OMISSIONS_SHA256 = 'b01c27ca8fa1bc8da5ebf5b27e2f3417d685db729e709201bec8f869daa27461'
 VC_RUNTIME_NAMES = ('concrt140.dll', 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll',
                     'msvcp140_atomic_wait.dll', 'msvcp140_codecvt_ids.dll', 'vccorlib140.dll',
                     'vcruntime140.dll', 'vcruntime140_1.dll', 'vcruntime140_threads.dll')
@@ -69,6 +71,25 @@ def verify_record(root, name, record):
     if not path.is_file() or sha(path) != digest:
         raise ValueError('Package asset hash mismatch: ' + name)
 
+def office_publish_exclusions(catalog):
+    # Upstream or selection changes need conversion-fidelity qualification again.
+    if hashlib.sha256(catalog).hexdigest() != OFFICE_RUNTIME_CATALOG_SHA256:
+        raise ValueError('Unqualified Office runtime catalog')
+    selected = []
+    for entry in json.loads(catalog)['files']:
+        name = safe(entry['path'])
+        path = PurePosixPath(name)
+        if name.startswith('libreoffice/share/extensions/dict-') and not path.name.startswith('hyph_'):
+            if path.suffix in ('.dic', '.aff') or (path.name.startswith('th_') and path.suffix in ('.dat', '.idx')):
+                selected.append(entry)
+        elif name.startswith('libreoffice/help/') and not any(word in path.name.lower() for word in ('license', 'copyright', 'copying', 'notice')):
+            selected.append(entry)
+    encoded = json.dumps(sorted(selected, key=lambda entry: entry['path']), sort_keys=True, separators=(',', ':')).encode()
+    if hashlib.sha256(encoded).hexdigest() != OFFICE_PUBLISH_OMISSIONS_SHA256:
+        raise ValueError('Unqualified Office publish omissions')
+    return {entry['path'] for entry in selected}
+
+
 def verify_offline_feature_packs(root, source_root=None):
     """Verify published mappings against repository-pinned provenance, never candidate-provided trust."""
     source_root = source_root or root
@@ -116,10 +137,12 @@ def verify_offline_feature_packs(root, source_root=None):
         verify_record(source_root if destination.startswith('source/') else root, destination, entry)
         if destination.startswith('image/'): expected_image.add(destination)
     runtime = {}
+    omitted = office_publish_exclusions(checked_path(root, 'feature-pack-runtime.sha256.json').read_bytes())
     for entry in catalog['files']:
         name = safe(entry['path'])
         if name.casefold() in runtime: raise ValueError('Duplicate feature-pack asset: ' + name)
         runtime[name.casefold()] = entry
+        if name in omitted: continue
         destination = 'feature-pack/' + name
         verify_record(root, destination, entry)
         expected_runtime.add(destination)
@@ -282,6 +305,7 @@ def quote(value):
 def instructions(files, root):
     install, delete, checks = [], [], []
     dirs = set()
+    previous_folder = None
     for index, name in enumerate(sorted(files)):
         safe(name)
         relative = name.replace('/', '\\')
@@ -289,7 +313,10 @@ def instructions(files, root):
         while str(parent) != '.':
             dirs.add(str(parent)); parent = parent.parent
         folder = str(PurePosixPath(name).parent).replace('/', '\\')
-        install += ['SetOutPath "$INSTDIR' + ('' if folder == '.' else '\\' + folder.replace('$','$$')) + '"', 'ClearErrors', 'File ' + quote(root / name), 'IfErrors 0 +2', 'Call Fail']
+        if folder != previous_folder:
+            install += ['SetOutPath "$INSTDIR' + ('' if folder == '.' else '\\' + folder.replace('$','$$')) + '"']
+            previous_folder = folder
+        install += ['ClearErrors', 'File ' + quote(root / name), 'IfErrors 0 +2', 'Call Fail']
         if index == 0:
             # Only a separately compiled fault-test installer enables this boundary.
             install += ['!ifdef CITRUS_TEST_FAIL_AFTER_FIRST_FILE', 'SetErrorLevel 25', 'Quit', '!endif', '!ifdef CITRUS_TEST_ROLLBACK_AFTER_FIRST_FILE', 'Call Fail', '!endif']

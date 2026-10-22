@@ -161,6 +161,29 @@ class PackageTests(unittest.TestCase):
             self.assertEqual('user output', (root / 'notes.txt').read_text())
             self.assertEqual(b'user output', (root / 'media/converted.mp4').read_bytes())
 
+    def test_installation_changes_output_folder_only_when_needed(self):
+        root = Path('payload')
+        files = {name: '0' * 64 for name in [
+            'root-2.bin', 'office/c.bin', 'office/a/nested.bin',
+            'root-1.bin', 'office/b.bin', 'office/a.bin']}
+        install, _, _ = package.instructions(files, root)
+        folders, destinations = [], []
+        for line in install.splitlines():
+            if line.startswith('SetOutPath '):
+                folders.append(line[len('SetOutPath '):])
+            elif line.startswith('File '):
+                destinations.append((folders[-1], line))
+        self.assertEqual(['"$INSTDIR\\office"', '"$INSTDIR\\office\\a"',
+                          '"$INSTDIR\\office"', '"$INSTDIR"'], folders)
+        self.assertEqual([
+            ('"$INSTDIR\\office"', 'File ' + package.quote(root / 'office/a.bin')),
+            ('"$INSTDIR\\office\\a"', 'File ' + package.quote(root / 'office/a/nested.bin')),
+            ('"$INSTDIR\\office"', 'File ' + package.quote(root / 'office/b.bin')),
+            ('"$INSTDIR\\office"', 'File ' + package.quote(root / 'office/c.bin')),
+            ('"$INSTDIR"', 'File ' + package.quote(root / 'root-1.bin')),
+            ('"$INSTDIR"', 'File ' + package.quote(root / 'root-2.bin'))], destinations)
+        self.assertEqual(len(files), install.splitlines().count('IfErrors 0 +2'))
+
     def test_unsafe_inventory_paths_rejected(self):
         for name in ['../outside', '/absolute', 'C:/outside', 'stream:ads', 'a/../b', 'a\\b', 'a\nFile x', 'wild*card', 'trailing.']:
             with self.subTest(name=name), self.assertRaises(ValueError):
@@ -176,7 +199,7 @@ class PackageTests(unittest.TestCase):
 
     def test_publish_inputs_use_real_builder_and_exclude_generated_office_files(self):
         project = ET.parse(package.REPO / 'src/Citrus.Conversion/Citrus.Conversion.csproj')
-        items = {node.attrib['Include']: node for node in project.iter('Content')}
+        items = {node.attrib['Include']: node for node in project.iter('Content') if 'Include' in node.attrib}
         self.assertIn('../../packaging/image/build-image-pack.ps1', items)
         self.assertNotIn('../../packaging/build-image-pack.ps1', items)
         self.assertIn('../../packaging/notices/Document-Feature-Pack-Notice.txt', items)
@@ -187,7 +210,7 @@ class PackageTests(unittest.TestCase):
     def test_publish_places_pinned_vc_runtime_beside_both_executables(self):
         project = ET.parse(package.REPO / 'src/Citrus.Conversion/Citrus.Conversion.csproj')
         links = [node.attrib.get('Link') for node in project.iter('Content')
-                 if node.attrib['Include'] == '../../packaging/feature-pack/libreoffice/System64/*.dll']
+                 if node.attrib.get('Include') == '../../packaging/feature-pack/libreoffice/System64/*.dll']
         self.assertIn('%(Filename)%(Extension)', links)
         self.assertIn('feature-pack/libreoffice/program/%(Filename)%(Extension)', links)
 
@@ -312,6 +335,42 @@ class SourceDistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Mixed inline'): package.verify(self.root)
 
 
+class OfficePublishPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.catalog = (package.REPO / 'packaging/feature-pack-runtime.sha256.json').read_bytes()
+
+    def test_qualified_unused_data_does_not_include_layout_or_engine_files(self):
+        omitted = package.office_publish_exclusions(self.catalog)
+        records = json.loads(self.catalog)['files']
+        self.assertEqual(5561, len(omitted))
+        self.assertEqual(462147095, sum(entry['bytes'] for entry in records if entry['path'] in omitted))
+        for entry in records:
+            name = entry['path']
+            if Path(name).name.startswith('hyph_') or name.startswith(('libreoffice/Fonts/', 'libreoffice/program/', 'tessdata/', 'pandoc/')):
+                self.assertNotIn(name, omitted)
+
+    def test_catalog_and_selection_drift_require_new_qualification(self):
+        with self.assertRaises(ValueError): package.office_publish_exclusions(self.catalog + b' ')
+        with patch.object(package, 'OFFICE_PUBLISH_OMISSIONS_SHA256', '0' * 64, create=True):
+            with self.assertRaises(ValueError): package.office_publish_exclusions(self.catalog)
+
+    def test_unused_help_is_omitted_but_its_copyright_notice_remains(self):
+        omitted = package.office_publish_exclusions(self.catalog)
+        help_files = [entry for entry in json.loads(self.catalog)['files']
+                      if entry['path'].startswith('libreoffice/help/') and entry['path'] in omitted]
+        self.assertEqual(5333, len(help_files))
+        self.assertEqual(11167117, sum(entry['bytes'] for entry in help_files))
+        self.assertNotIn('libreoffice/help/media/icon-themes/COPYING-ICONS', omitted)
+
+    def test_changed_selected_bytes_are_rejected_even_if_catalog_pin_changes(self):
+        catalog = json.loads(self.catalog)
+        selected = next(entry for entry in catalog['files'] if entry['path'].endswith('/dict-af/af_ZA.aff'))
+        selected['sha256'] = '0' * 64
+        data = json.dumps(catalog).encode()
+        with patch.object(package, 'OFFICE_RUNTIME_CATALOG_SHA256', hashlib.sha256(data).hexdigest(), create=True):
+            with self.assertRaises(ValueError): package.office_publish_exclusions(data)
+
+
 class OfflineFeaturePackTests(unittest.TestCase):
     """Tiny actual files prove mappings and rejection without native engines or downloads."""
     def setUp(self):
@@ -370,6 +429,8 @@ class OfflineFeaturePackTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch.object(package, 'REPO', self.repo).start()
         patch.object(package, 'OCR_NATIVE_HASHES', self.ocr, create=True).start()
+        # This synthetic catalog contains none of the qualified upstream dictionary data.
+        patch.object(package, 'office_publish_exclusions', return_value=set(), create=True).start()
 
     @staticmethod
     def digest(data): return hashlib.sha256(data).hexdigest()
@@ -394,6 +455,46 @@ class OfflineFeaturePackTests(unittest.TestCase):
     def verify(self): package.verify_offline_feature_packs(self.root)
 
     def test_complete_pack_uses_published_mappings(self): self.verify()
+
+    def test_qualified_dictionary_omissions_keep_an_exact_published_closure(self):
+        name = 'libreoffice/share/extensions/dict-test/test.dic'
+        self.catalog['files'].append(self.record(name, b'unused spelling dictionary'))
+        self.write_manifests()
+        with patch.object(package, 'office_publish_exclusions', return_value={name}):
+            self.verify()
+            self.put(self.root, 'feature-pack/' + name, b'unused spelling dictionary')
+            with self.assertRaises(ValueError): self.verify()
+
+    def test_fonts_hyphenation_and_registration_remain_required(self):
+        retained = ['libreoffice/Fonts/fixture.ttf',
+                    'libreoffice/help/media/icon-themes/COPYING-ICONS',
+                    'libreoffice/share/extensions/dict-test/hyph_test.dic',
+                    'libreoffice/share/extensions/dict-test/dictionaries.xcu',
+                    'libreoffice/share/extensions/dict-test/LICENSE.txt']
+        for name in retained:
+            self.catalog['files'].append(self.record(name, b'required runtime data'))
+            self.put(self.root, 'feature-pack/' + name, b'required runtime data')
+        self.write_manifests()
+        self.verify()
+        for name in retained:
+            with self.subTest(name=name):
+                path = self.root / ('feature-pack/' + name)
+                path.unlink()
+                try:
+                    with self.assertRaises(FileNotFoundError): self.verify()
+                finally: path.write_bytes(b'required runtime data')
+
+    def test_omitted_records_still_reject_unsafe_and_duplicate_paths(self):
+        for names in [('../outside',), ('libreoffice/dictionary.dic', 'LIBREOFFICE/dictionary.dic')]:
+            with self.subTest(names=names):
+                original = json.loads(json.dumps(self.catalog))
+                self.catalog['files'].extend(self.record(name, b'unused') for name in names)
+                self.write_manifests()
+                try:
+                    with patch.object(package, 'office_publish_exclusions', return_value=set(names)):
+                        with self.assertRaises(ValueError): self.verify()
+                finally: self.catalog = original
+        self.write_manifests()
 
     def test_external_feature_sources_remain_bound_to_repository_pins(self):
         external = self.root.parent / 'sources'
