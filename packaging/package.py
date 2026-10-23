@@ -20,7 +20,7 @@ OCR_NATIVE_HASHES = {
     'x64/leptonica-1.82.0.dll': 'dfcb3e6ed0b16bc55bfdbcf53543cfe42a354b87c3e35bd3a95eebf005d73e76',
 }
 OFFICE_RUNTIME_CATALOG_SHA256 = 'f375200f6c662724baffa0e4b676b330496270e81c2c3bcd2f71515c8cfc26b4'
-OFFICE_PUBLISH_OMISSIONS_SHA256 = 'b01c27ca8fa1bc8da5ebf5b27e2f3417d685db729e709201bec8f869daa27461'
+OFFICE_PUBLISH_OMISSIONS_SHA256 = '9ee3e59aa6bd61c12820daef9e33eda05af810c76e93fe1d4d3e50b84860160a'
 VC_RUNTIME_NAMES = ('concrt140.dll', 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll',
                     'msvcp140_atomic_wait.dll', 'msvcp140_codecvt_ids.dll', 'vccorlib140.dll',
                     'vcruntime140.dll', 'vcruntime140_1.dll', 'vcruntime140_threads.dll')
@@ -83,6 +83,13 @@ def office_publish_exclusions(catalog):
             if path.suffix in ('.dic', '.aff') or (path.name.startswith('th_') and path.suffix in ('.dat', '.idx')):
                 selected.append(entry)
         elif name.startswith('libreoffice/help/') and not any(word in path.name.lower() for word in ('license', 'copyright', 'copying', 'notice')):
+            selected.append(entry)
+        # Citrus initializes LibreOfficeKit in en-US, whose messages are embedded.
+        elif (name.startswith('libreoffice/program/resource/') and path.parent.name == 'LC_MESSAGES'
+              and path.parts[3] != 'en-US' and path.suffix == '.mo'):
+            selected.append(entry)
+        elif (name.startswith(('libreoffice/share/extensions/nlpsolver/help/', 'libreoffice/share/extensions/wiki-publisher/help/'))
+              and len(path.parts) > 6 and path.parts[5] != 'en-US'):
             selected.append(entry)
     encoded = json.dumps(sorted(selected, key=lambda entry: entry['path']), sort_keys=True, separators=(',', ':')).encode()
     if hashlib.sha256(encoded).hexdigest() != OFFICE_PUBLISH_OMISSIONS_SHA256:

@@ -342,12 +342,44 @@ class OfficePublishPolicyTests(unittest.TestCase):
     def test_qualified_unused_data_does_not_include_layout_or_engine_files(self):
         omitted = package.office_publish_exclusions(self.catalog)
         records = json.loads(self.catalog)['files']
-        self.assertEqual(5561, len(omitted))
-        self.assertEqual(462147095, sum(entry['bytes'] for entry in records if entry['path'] in omitted))
+        self.assertEqual(11433, len(omitted))
+        self.assertEqual(741234092, sum(entry['bytes'] for entry in records if entry['path'] in omitted))
         for entry in records:
             name = entry['path']
+            message_catalog = name.startswith('libreoffice/program/resource/') and '/LC_MESSAGES/' in name and name.endswith('.mo')
+            if message_catalog: continue
             if Path(name).name.startswith('hyph_') or name.startswith(('libreoffice/Fonts/', 'libreoffice/program/', 'tessdata/', 'pandoc/')):
                 self.assertNotIn(name, omitted)
+
+    def test_only_unused_message_catalogs_are_removed_from_program_resources(self):
+        omitted = package.office_publish_exclusions(self.catalog)
+        selected = [entry for entry in json.loads(self.catalog)['files']
+                    if entry['path'].startswith('libreoffice/program/') and entry['path'] in omitted]
+        self.assertEqual(3904, len(selected))
+        self.assertEqual(274313225, sum(entry['bytes'] for entry in selected))
+        for entry in selected:
+            parts = entry['path'].split('/')
+            self.assertEqual(['libreoffice', 'program', 'resource'], parts[:3])
+            self.assertEqual('LC_MESSAGES', parts[4])
+            self.assertNotEqual('en-US', parts[3])
+            self.assertTrue(parts[5].endswith('.mo'))
+            self.assertEqual(6, len(parts))
+
+    def test_extension_help_keeps_english_registration_markers_and_licenses(self):
+        omitted = package.office_publish_exclusions(self.catalog)
+        roots = ('libreoffice/share/extensions/nlpsolver/', 'libreoffice/share/extensions/wiki-publisher/')
+        selected = []
+        for entry in json.loads(self.catalog)['files']:
+            name = entry['path']
+            if not name.startswith(roots): continue
+            parts = name.split('/')
+            if len(parts) > 6 and parts[4] == 'help' and parts[5] != 'en-US':
+                self.assertTrue(name in omitted, name)
+                selected.append(entry)
+            else:
+                self.assertNotIn(name, omitted)
+        self.assertEqual(1968, len(selected))
+        self.assertEqual(4773772, sum(entry['bytes'] for entry in selected))
 
     def test_catalog_and_selection_drift_require_new_qualification(self):
         with self.assertRaises(ValueError): package.office_publish_exclusions(self.catalog + b' ')

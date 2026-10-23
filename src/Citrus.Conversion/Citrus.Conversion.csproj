@@ -39,6 +39,12 @@
     <Content Update="../../packaging/feature-pack/libreoffice/help/**/*">
       <CopyToPublishDirectory Condition="'%(Filename)%(Extension)' != 'COPYING-ICONS'">Never</CopyToPublishDirectory>
     </Content>
+    <!-- The isolated engine uses embedded en-US messages; keep document locale data. -->
+    <Content Update="../../packaging/feature-pack/libreoffice/program/resource/*/LC_MESSAGES/*.mo" CopyToPublishDirectory="Never" />
+    <Content Update="../../packaging/feature-pack/libreoffice/program/resource/en-US/LC_MESSAGES/*.mo" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Keep English extension help and root registration markers. -->
+    <Content Update="../../packaging/feature-pack/libreoffice/share/extensions/nlpsolver/help/*/**/*;../../packaging/feature-pack/libreoffice/share/extensions/wiki-publisher/help/*/**/*" CopyToPublishDirectory="Never" />
+    <Content Update="../../packaging/feature-pack/libreoffice/share/extensions/nlpsolver/help/en-US/**/*;../../packaging/feature-pack/libreoffice/share/extensions/wiki-publisher/help/en-US/**/*" CopyToPublishDirectory="PreserveNewest" />
     <!-- Upstream-pinned x64 CRT aliases: app/OCR and the isolated Office executable directory. -->
     <Content Include="../../packaging/feature-pack/libreoffice/System64/*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../packaging/feature-pack/libreoffice/System64/*.dll" Link="feature-pack/libreoffice/program/%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
