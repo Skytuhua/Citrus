@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0-preview.9 — 2026-10-22
+
+- Reuse SHA-256 hash contexts and memory buffers during setup verification while checking every installed file.
+- Discard failed hash state before checking another file or rolling back, and release all cached hashing resources when setup exits.
+- Add native release checks for empty and chunk-boundary files, repeated hashes, locked/missing files, partial-read failure recovery and cleanup/reopen.
+
 ## 0.3.0-preview.8 — 2026-10-22
 
 - Use the standard Windows installer directly, without a separate download window.

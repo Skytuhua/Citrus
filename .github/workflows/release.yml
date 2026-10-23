@@ -112,6 +112,8 @@ jobs:
           if($LASTEXITCODE){throw 'Signing verification contracts failed'}
           python packaging/test-update-installer.py
           if($LASTEXITCODE){throw 'Native installer transition fixtures failed'}
+          python packaging/test-setup-hash.py --native --compiler "$env:MAKENSIS" --compiler-sha256 f497e92deb9f179f7b8f7553fcb3bd04f511bb2949e5e4a2aee80a10f7b20431
+          if($LASTEXITCODE){throw 'Native installer hash contracts failed'}
       - name: Build complete offline installer and verify prepared inventory
         shell: pwsh
         run: |
@@ -196,9 +198,14 @@ jobs:
         if: always()
         with:
           name: release-metadata-and-test-receipts
+          include-hidden-files: true
           path: |
             dist/release-manifest.json
             dist/release/SHA256SUMS
             dist/source-distribution.json
             .local/update-*.log
+            .local/setup-hash-*/result.json
+            .local/setup-hash-*/compile.log
+            .local/setup-hash-*/native.log
+            .local/setup-hash-*/results.txt
           if-no-files-found: warn

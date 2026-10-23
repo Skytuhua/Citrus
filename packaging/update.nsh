@@ -33,9 +33,6 @@ Function ${PREFIX}HashFile
   Pop $HashPath
   StrCpy $HashValue ""
   StrCpy $HashFileHandle -1
-  StrCpy $HashContext 0
-  StrCpy $HashBuffer 0
-  StrCpy $HashDigest 0
   System::Call 'kernel32::CreateFileW(w "$HashPath", i 0x80000000, i 1, p 0, i 3, i 0x08000000, p 0) p.r0'
   StrCpy $HashFileHandle $0
   ${If} $HashFileHandle == -1
@@ -43,23 +40,33 @@ Function ${PREFIX}HashFile
   ${EndIf}
   ${If} $HashAlgorithm == 0
   ${OrIf} $HashAlgorithm == ""
-    ; Opening the provider for every file adds minutes to the complete offline pack.
-    System::Call 'bcrypt::BCryptOpenAlgorithmProvider(*p.r0, w "SHA256", p 0, i 0) i.r1'
+    System::Call 'bcrypt::BCryptOpenAlgorithmProvider(*p.r0, w "SHA256", p 0, i 0x20) i.r1'
     StrCpy $HashAlgorithm $0
     ${If} $1 != 0
       StrCpy $HashAlgorithm 0
       Goto hash_cleanup
     ${EndIf}
   ${EndIf}
-  System::Call 'bcrypt::BCryptCreateHash(p $HashAlgorithm, *p.r0, p 0, i 0, p 0, i 0, i 0) i.r1'
-  StrCpy $HashContext $0
-  ${If} $1 != 0
-    Goto hash_cleanup
+  ${If} $HashContext == 0
+  ${OrIf} $HashContext == ""
+    ; Successful BCryptFinishHash resets this reusable context for the next file.
+    System::Call 'bcrypt::BCryptCreateHash(p $HashAlgorithm, *p.r0, p 0, i 0, p 0, i 0, i 0x20) i.r1'
+    ${If} $1 != 0
+      StrCpy $HashContext 0
+      Goto hash_cleanup
+    ${EndIf}
+    StrCpy $HashContext $0
   ${EndIf}
-  System::Alloc 65536
-  Pop $HashBuffer
-  System::Alloc 32
-  Pop $HashDigest
+  ${If} $HashBuffer == 0
+  ${OrIf} $HashBuffer == ""
+    System::Alloc 65536
+    Pop $HashBuffer
+  ${EndIf}
+  ${If} $HashDigest == 0
+  ${OrIf} $HashDigest == ""
+    System::Alloc 32
+    Pop $HashDigest
+  ${EndIf}
   ${If} $HashBuffer == 0
   ${OrIf} $HashDigest == 0
     Goto hash_cleanup
@@ -88,26 +95,41 @@ Function ${PREFIX}HashFile
       StrCpy $HashValue $0
     ${EndIf}
   hash_cleanup:
-    ${If} $HashDigest != 0
-      System::Free $HashDigest
-    ${EndIf}
-    ${If} $HashBuffer != 0
-      System::Free $HashBuffer
-    ${EndIf}
-    ${If} $HashContext != 0
-      System::Call 'bcrypt::BCryptDestroyHash(p $HashContext)'
+    ${If} $HashValue == ""
+      ; A failed partial hash must never contaminate the next verification or rollback.
+      ${If} $HashContext != 0
+      ${AndIf} $HashContext != ""
+        System::Call 'bcrypt::BCryptDestroyHash(p $HashContext)'
+      ${EndIf}
+      StrCpy $HashContext 0
     ${EndIf}
     ${If} $HashFileHandle != -1
       System::Call 'kernel32::CloseHandle(p $HashFileHandle)'
+      StrCpy $HashFileHandle -1
     ${EndIf}
     Push $HashValue
 FunctionEnd
 Function ${PREFIX}CloseHashProvider
+  ${If} $HashContext != 0
+  ${AndIf} $HashContext != ""
+    System::Call 'bcrypt::BCryptDestroyHash(p $HashContext)'
+  ${EndIf}
+  StrCpy $HashContext 0
+  ${If} $HashDigest != 0
+  ${AndIf} $HashDigest != ""
+    System::Free $HashDigest
+  ${EndIf}
+  StrCpy $HashDigest 0
+  ${If} $HashBuffer != 0
+  ${AndIf} $HashBuffer != ""
+    System::Free $HashBuffer
+  ${EndIf}
+  StrCpy $HashBuffer 0
   ${If} $HashAlgorithm != 0
   ${AndIf} $HashAlgorithm != ""
     System::Call 'bcrypt::BCryptCloseAlgorithmProvider(p $HashAlgorithm, i 0)'
-    StrCpy $HashAlgorithm 0
   ${EndIf}
+  StrCpy $HashAlgorithm 0
 FunctionEnd
 !macroend
 !insertmacro HashFunction ""

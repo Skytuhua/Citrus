@@ -1,6 +1,8 @@
 # 0.3 preview notes
 
-Citrus 0.3.0-preview.8 uses the standard installation wizard directly and omits unused Office spelling/thesaurus data and help pages. Every conversion engine remains available offline; fonts, hyphenation data and license notices remain included. Setup skips repeated output-folder changes while retaining all file and integrity checks. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
+Citrus 0.3.0-preview.9 reduces repeated allocations during installed-file verification by reusing SHA-256 contexts and buffers. Every installed file still receives its complete hash check; failed partial hashes are discarded before another file or rollback is checked. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
+
+Preview.8 switched to the standard installation wizard directly and omitted unused Office spelling/thesaurus data and help pages. Every conversion engine remains available offline; fonts, hyphenation data and license notices remain included. Setup skips repeated output-folder changes while retaining all file and integrity checks.
 
 Preview.7 reduced repeated work in large submissions, image editing, PDF thumbnails, audio waveform refreshes and glass presentation. Checked image, PDF and glass output bytes remain unchanged. The [performance record](https://github.com/Skytuhua/Citrus/blob/main/docs/verification/performance-2026-10-22.md) gives the measured workloads, allocation tradeoffs and verification scope.
 
@@ -19,6 +21,8 @@ Preview.6 fixed the six repository audit findings and an intermittent installer 
 - Native glass excludes its windows from capture to prevent feedback. Recordings may omit it. Opaque accessibility/device fallbacks remain available.
 
 ## Verification and performance
+
+Preview.9's native hashing checks cover empty and chunk-boundary files, repeated hashes, locked/missing files, partial-read failure recovery and cleanup/reopen. End-to-end installation timing and interactive Finish-page acceptance are qualified separately with the packaged release.
 
 Preview.7 source verification passed a full Release solution build with zero warnings or errors, 274 core tests, 639 conversion tests with four environment skips, and 63 selected Release Windows tests with no skips or failures. The Windows batch contains 35 glass checks and 28 media checks using unshown controls. Thirteen image/frame fixture hashes, six PDF PNG hashes and 15 glass body/composite hash pairs match their baselines; the decoder follow-up separately verifies exact input/output bytes. These checks do not qualify the full native desktop suite. Packaged smoke checks are qualified separately for the sealed release payload.
 
