@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Linux cross-publish; requires pinned SDK (global.json), Python 3.12+, NSIS 3.11.
+# Linux retains serial NSIS payload verification; the parallel helper is built only on Windows.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo"

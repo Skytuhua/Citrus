@@ -84,7 +84,7 @@ class InstallerUpdateTests(unittest.TestCase):
             install, delete, checks = package.instructions(files, payload.resolve())
             for name, content in [('install.nsh', install), ('uninstall.nsh', delete), ('paths.nsh', checks)]:
                 (generated / name).write_text(content, encoding='utf-8')
-            (generated / 'verify.nsh').write_text(package.verification_instructions(files))
+            (generated / 'verify.nsh').write_text(package.prepare_verification(files, generated, os.environ.get('DOTNET', 'dotnet')))
             (generated / 'identity.nsh').write_text('!define INVENTORY_HASH "' + files['install-inventory.json'] + '"\n')
             sdk = package.sha(ROOT / 'packaging/notices/presentation/Windows-SDK-License.rtf')
             (generated / 'version.nsh').write_text(package.version_include())

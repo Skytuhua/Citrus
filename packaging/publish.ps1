@@ -29,7 +29,7 @@ try {
     if ($Phase -ne 'Installer') {
         & $dotnetCommand publish src/Citrus.Windows/Citrus.Windows.csproj -c Release -r win-x64 --self-contained true -p:EnableWindowsTargeting=true -p:RestoreLockedMode=true -m:1 -nodeReuse:false -o $payload
         if ($LASTEXITCODE) { throw 'Self-contained publish failed' }
-        & $pythonCommand packaging/package.py prepare $payload --generated $generated
+        & $pythonCommand packaging/package.py prepare $payload --generated $generated --dotnet $dotnetCommand
         if ($LASTEXITCODE) { throw 'Payload verification failed' }
     }
     foreach ($name in @('identity.nsh', 'version.nsh', 'paths.nsh', 'install.nsh', 'uninstall.nsh', 'verify.nsh')) {
@@ -38,9 +38,14 @@ try {
             throw "Missing generated NSIS include: $includePath (generated directory: $generated)"
         }
     }
+    foreach ($name in @('PayloadManifest.cs', 'Citrus.PayloadVerifier.exe')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $generated $name) -PathType Leaf)) {
+            throw "Missing generated payload verifier: $name"
+        }
+    }
     Write-Host "Generated NSIS includes: $generated"
     if ($Phase -ne 'Payload') {
-        & $pythonCommand packaging/package.py verify-prepared $payload --generated $generated
+        & $pythonCommand packaging/package.py verify-prepared $payload --generated $generated --dotnet $dotnetCommand
         if ($LASTEXITCODE) { throw 'Prepared payload verification failed' }
         & $nsisCommand /V3 /NOCD "/DGENERATED=$generated" "/DOUTPUT=$output" $installerScript
         if ($LASTEXITCODE) { throw 'NSIS compilation failed' }

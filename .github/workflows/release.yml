@@ -110,6 +110,10 @@ jobs:
           if($LASTEXITCODE){throw 'Publish output path guards failed'}
           python packaging/test-signpath.py
           if($LASTEXITCODE){throw 'Signing verification contracts failed'}
+          python packaging/test-parallel-verification.py
+          if($LASTEXITCODE){throw 'Prepared parallel verifier trust contracts failed'}
+          python packaging/test-payload-verifier-native.py
+          if($LASTEXITCODE){throw 'Read-only native payload verifier contracts failed'}
           python packaging/test-update-installer.py
           if($LASTEXITCODE){throw 'Native installer transition fixtures failed'}
           python packaging/test-setup-hash.py --native --compiler "$env:MAKENSIS" --compiler-sha256 f497e92deb9f179f7b8f7553fcb3bd04f511bb2949e5e4a2aee80a10f7b20431

@@ -24,6 +24,13 @@ jobs:
         run: dotnet build Citrus.sln -c Release --no-restore -m:1
       - name: Core contracts
         run: dotnet test tests/Citrus.Core.Tests -c Release --no-build --no-restore --logger trx --results-directory TestResults/core
+      - name: Prepared installer verifier contracts
+        shell: pwsh
+        run: |
+          python packaging/test-parallel-verification.py
+          if($LASTEXITCODE){throw 'Prepared parallel verifier trust contracts failed'}
+          python packaging/test-payload-verifier-native.py
+          if($LASTEXITCODE){throw 'Read-only payload verifier contracts failed'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

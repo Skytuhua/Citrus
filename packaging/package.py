@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import runpy
 import stat
 from pathlib import Path, PurePosixPath
 import shutil
@@ -363,6 +364,15 @@ def verification_instructions(files):
     checks += ['DetailPrint "Installed files verified."']
     return '\n'.join(checks) + '\n'
 
+def prepare_verification(files, generated, dotnet=None):
+    # Cross-publishing keeps the existing serial NSIS verifier without a Windows compiler.
+    if os.name != 'nt': return verification_instructions(files)
+    return runpy.run_path(str(Path(__file__).parent / 'payload-verifier/build.py'))['prepare'](files, generated, dotnet)
+
+def verify_prepared_verification(files, generated, dotnet=None):
+    if os.name != 'nt': return verification_instructions(files)
+    return runpy.run_path(str(Path(__file__).parent / 'payload-verifier/build.py'))['verify_prepared'](files, generated, dotnet)
+
 def verify(root, source_root=None):
     if (root / 'source').exists() and (root / 'source-distribution.json').exists():
         raise ValueError('Mixed inline and separate corresponding-source distributions')
@@ -401,7 +411,7 @@ def verify(root, source_root=None):
     inventory(root)
     print('PASS complete application, self-contained runtime, image/Office/EPUB/OCR/PDF/archive/media engines, sources and licenses')
 
-def prepare(root, generated):
+def prepare(root, generated, dotnet=None):
     shutil.copyfile(REPO / 'packaging/Distribution-README.md', root / 'README.md')
     for name in ['LICENSE','THIRD-PARTY-NOTICES.md']:
         shutil.copyfile(REPO / name, root / name)
@@ -417,13 +427,14 @@ def prepare(root, generated):
     files['install-inventory.json'] = sha(root / 'install-inventory.json')
     install, delete, checks = instructions(files, root.resolve())
     generated.mkdir(parents=True, exist_ok=True)
+    verification = prepare_verification(files, generated, dotnet)
     for name, text in [('install.nsh',install),('uninstall.nsh',delete),('paths.nsh',checks),
-                       ('verify.nsh',verification_instructions(files)),('version.nsh',version_include())]:
+                       ('verify.nsh',verification),('version.nsh',version_include())]:
         (generated / name).write_text(text, encoding='utf-8')
     (generated / 'identity.nsh').write_text('!define INVENTORY_HASH "' + files['install-inventory.json'] + '"\n')
     print('PASS generated embedded ownership for', len(files), 'files')
 
-def verify_prepared(root, generated):
+def verify_prepared(root, generated, dotnet=None):
     """Read-only ownership closure; the CLI also runs full backend verification."""
     files = inventory(root)
     inventory_hash = files.pop('install-inventory.json')
@@ -433,7 +444,7 @@ def verify_prepared(root, generated):
     install, delete, checks = instructions(files, root.resolve())
     expected = {'install.nsh': install, 'uninstall.nsh': delete, 'paths.nsh': checks,
                 'identity.nsh': '!define INVENTORY_HASH "' + inventory_hash + '"\n',
-                'verify.nsh': verification_instructions(files), 'version.nsh': version_include()}
+                'verify.nsh': verify_prepared_verification(files, generated, dotnet), 'version.nsh': version_include()}
     if generated.is_symlink(): raise ValueError('Linked generated include directory')
     for name, text in expected.items():
         path = generated / name
@@ -455,10 +466,11 @@ if __name__ == '__main__':
     parser.add_argument('directory', type=Path)
     parser.add_argument('--generated', type=Path, default=REPO / 'dist/nsis')
     parser.add_argument('--sources', type=Path, help='External staging root containing source/; defaults to the sibling third-party-sources directory')
+    parser.add_argument('--dotnet', help='Existing dotnet executable containing the global.json SDK (Windows verifier only)')
     args = parser.parse_args()
     if args.command == 'verify': verify(args.directory, args.sources)
-    elif args.command == 'prepare': prepare(args.directory, args.generated)
+    elif args.command == 'prepare': prepare(args.directory, args.generated, args.dotnet)
     elif args.command == 'verify-prepared':
         verify(args.directory, args.sources)
-        verify_prepared(args.directory, args.generated)
+        verify_prepared(args.directory, args.generated, args.dotnet)
     else: checksums(args.directory)
