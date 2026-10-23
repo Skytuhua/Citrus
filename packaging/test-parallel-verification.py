@@ -99,7 +99,7 @@ class PreparedHelperTests(unittest.TestCase):
         files = package.inventory(payload)
         (payload / 'install-inventory.json').write_text(json.dumps(files, indent=2) + '\n', encoding='utf-8')
         files['install-inventory.json'] = package.sha(payload / 'install-inventory.json')
-        for name, text in zip(('install.nsh', 'uninstall.nsh', 'paths.nsh'), package.instructions(files, payload)):
+        for name, text in zip(('install.nsh', 'uninstall.nsh', 'paths.nsh'), package.instructions(files, payload.resolve())):
             (generated / name).write_text(text, encoding='utf-8')
         for name, text in (('verify.nsh', package.prepare_verification(files, generated)),
             ('identity.nsh', '!define INVENTORY_HASH "' + files['install-inventory.json'] + '"\n'),
@@ -114,6 +114,14 @@ class PreparedHelperTests(unittest.TestCase):
             other = Path(temp) / 'fresh-witness'
             builder.prepare(files, other)
             self.assertEqual((generated / builder.EXECUTABLE).read_bytes(), (other / builder.EXECUTABLE).read_bytes())
+
+    def test_noncanonical_payload_path_uses_canonical_ownership(self):
+        with tempfile.TemporaryDirectory(prefix='citrus-verifier-alias-') as temp:
+            alias = Path(temp) / 'parent'
+            alias.mkdir()
+            payload, generated, _ = self.fixture(alias / '..')
+            self.assertNotEqual(payload, payload.resolve())
+            package.verify_prepared(payload, generated)
 
     def test_changed_source_executable_include_inventory_and_payload_are_rejected(self):
         with tempfile.TemporaryDirectory(prefix='citrus-verifier-closure-') as temp:
