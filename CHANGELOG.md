@@ -3,6 +3,7 @@
 ## 0.3.0-preview.9 — 2026-10-22
 
 - Reuse SHA-256 hash contexts and memory buffers during setup verification while checking every installed file.
+- Use a 1-MiB unpacking dictionary and 1-MiB verification reads while retaining every installed-file hash check.
 - Discard failed hash state before checking another file or rolling back, and release all cached hashing resources when setup exits.
 - Add native release checks for empty and chunk-boundary files, repeated hashes, locked/missing files, partial-read failure recovery and cleanup/reopen.
 

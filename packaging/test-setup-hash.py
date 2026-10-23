@@ -15,7 +15,7 @@ import uuid
 
 
 SOURCE = Path(__file__).with_name('update.nsh')
-READ = "    System::Call 'kernel32::ReadFile(p $HashFileHandle, p $HashBuffer, i 65536, *i.r2, p 0) i.r1'"
+READ = "    System::Call 'kernel32::ReadFile(p $HashFileHandle, p $HashBuffer, i 1048576, *i.r2, p 0) i.r1'"
 FAULT = """    IntOp $TestFaultReads $TestFaultReads + 1
     ${If} $TestFaultReads == 2
       ; Force a real ReadFile failure after one chunk reached BCryptHashData.
@@ -74,7 +74,7 @@ def native_script(variables, macro, directory, benchmark):
                      'IntOp $0 $0 - $TestStarted',
                      'FileWrite $TestLog "time-' + name + '|$0$\\r$\\n"'])
 
-    for size in (0, 1, 65536, 65537):
+    for size in (0, 1, 65536, 65537, 1048576, 1048577):
         record('bytes-' + str(size), 'bytes-' + str(size) + '.bin')
     record('repeat', 'bytes-65537.bin')
     record('missing', 'missing.bin')
@@ -88,9 +88,9 @@ def native_script(variables, macro, directory, benchmark):
     body.append('Call CloseHashProvider')
     record('reopened', 'bytes-1.bin')
     body.append('StrCpy $TestFaultReads 0')
-    record('read-error', 'bytes-65537.bin', 'fault.')
+    record('read-error', 'bytes-1048577.bin', 'fault.')
     body.append('FileWrite $TestLog "fault-reads|$TestFaultReads$\\r$\\n"')
-    record('after-read-error', 'bytes-65537.bin')
+    record('after-read-error', 'bytes-1048577.bin')
     body.extend(['Call CloseHashProvider', 'Call CloseHashProvider'])
     record('reopened-twice', 'bytes-0.bin')
     elapsed('semantics')
@@ -124,7 +124,7 @@ def fixtures(directory, benchmark):
             stream.write(content)
         cases[name] = hashlib.sha256(content).hexdigest()
 
-    for size in (0, 1, 65536, 65537):
+    for size in (0, 1, 65536, 65537, 1048576, 1048577):
         write('bytes-' + str(size), (bytes(range(256)) * (size // 256 + 1))[:size])
     if benchmark:
         for index in range(1000):
@@ -152,6 +152,14 @@ class SelfCheck(unittest.TestCase):
                         text.replace('kernel32::ReadFile', 'kernel32::ChangedReadFile')):
             with self.assertRaises(ValueError):
                 extract(changed)
+
+    def test_buffer_covers_the_read_chunk_and_both_boundary_sizes_are_exercised(self):
+        variables, macro = extract(SOURCE.read_text(encoding='utf-8-sig'))
+        self.assertEqual(macro.count('System::Alloc 1048576'), 1)
+        generated = native_script(variables, macro, Path('fixture'), False)
+        for size in (65536, 65537, 1048576, 1048577):
+            self.assertIn('Push "fixture\\bytes-' + str(size) + '.bin"', generated)
+        self.assertIn('Push "fixture\\bytes-1048577.bin"\nCall fault.HashFile', generated)
 
     def test_spawned_process_is_reaped_when_pid_reporting_fails(self):
         process = Mock(pid=123)
@@ -217,7 +225,8 @@ def run_native(args):
         require(len(actual) == len(pairs), 'Duplicate native result')
         expected = dict(cases)
         expected.update({name: cases['bytes-65537'] for name in
-                         ('repeat', 'after-lock', 'after-read-error')})
+                         ('repeat', 'after-lock')})
+        expected['after-read-error'] = cases['bytes-1048577']
         expected.update({'missing': '', 'locked': '', 'read-error': '', 'fault-reads': '2',
                          'reopened': cases['bytes-1'], 'reopened-twice': cases['bytes-0']})
         timing_names = ['semantics', '1000-tiny', '32-MiB'] if args.benchmark else ['semantics']

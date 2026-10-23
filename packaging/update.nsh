@@ -59,7 +59,7 @@ Function ${PREFIX}HashFile
   ${EndIf}
   ${If} $HashBuffer == 0
   ${OrIf} $HashBuffer == ""
-    System::Alloc 65536
+    System::Alloc 1048576
     Pop $HashBuffer
   ${EndIf}
   ${If} $HashDigest == 0
@@ -72,7 +72,7 @@ Function ${PREFIX}HashFile
     Goto hash_cleanup
   ${EndIf}
   hash_read:
-    System::Call 'kernel32::ReadFile(p $HashFileHandle, p $HashBuffer, i 65536, *i.r2, p 0) i.r1'
+    System::Call 'kernel32::ReadFile(p $HashFileHandle, p $HashBuffer, i 1048576, *i.r2, p 0) i.r1'
     ${If} $1 == 0
       Goto hash_cleanup
     ${EndIf}

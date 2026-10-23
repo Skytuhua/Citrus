@@ -23,8 +23,9 @@ Name "Citrus"
 OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Programs\${CITRUS_INSTALL_SUBDIR}"
 RequestExecutionLevel user
-; The complete offline pack exceeds NSIS's signed 2-GiB uncompressed solid cache.
+; Limit the per-file decompression dictionary for this non-solid offline pack.
 SetCompressor lzma
+SetCompressorDictSize 1
 SetDatablockOptimize on
 VIProductVersion "${CITRUS_FILE_VERSION}"
 VIAddVersionKey "ProductName" "Citrus"
