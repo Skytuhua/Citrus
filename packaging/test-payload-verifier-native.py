@@ -21,7 +21,7 @@ class NativeVerifierTests(unittest.TestCase):
         spec.loader.exec_module(cls.builder)
 
     def fixture(self, parent, names=None):
-        root = parent / 'owned ü $ root'
+        root = parent.resolve() / 'owned ü $ root'
         root.mkdir()
         names = names or {'empty.txt': b'', 'nested/한글 ü $.bin': bytes(range(256)) * 519,
             'last.txt': b'final expected file'}
