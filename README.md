@@ -75,6 +75,16 @@ Installed releases check for updates in the background and install verified new 
 
 Conversion and editing run on your computer, without an upload workflow or account. Jobs preserve the original file's bytes and location; moving originals is a separate, explicit action. Review the returned file and destination before relying on the result.
 
+## Reproducible released-engine checks
+
+Inspect owned sample inputs, actual exported outputs, measured checks and limitations:
+
+- [HEIC photo to JPEG on Windows](https://citrous.app/guides/heic-to-jpg-windows/)
+- [Trim a video and save a separate clip](https://citrous.app/guides/trim-video-windows/)
+- [Extract pages 2–3 from a three-page PDF](https://citrous.app/support/#tested-workflows)
+
+Each example records its tested build and date independently of the current release. These are narrow released-engine checks; full-application, installation and clean-PC acceptance remain separate.
+
 ## Preview boundaries
 
 Citrus is actively developed. Format and codec compatibility, output fidelity and processing time vary by file. The workspace's static video thumbnail is limited; the video editors show playable video.
