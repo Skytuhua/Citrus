@@ -453,7 +453,10 @@ Section "Citrus (required)" MainSection
   Call BeginUpgrade
   Call EstablishOwnership
   SetOverwrite on
+  DetailPrint "Installing bundled files..."
+  SetDetailsPrint none
   !include "${GENERATED}\install.nsh"
+  SetDetailsPrint both
   ClearErrors
   CreateDirectory "$SMPROGRAMS\${CITRUS_INSTALL_SUBDIR}"
   CreateShortcut "$SMPROGRAMS\${CITRUS_INSTALL_SUBDIR}\Citrus.lnk" "$INSTDIR\Citrus.Windows.exe"
