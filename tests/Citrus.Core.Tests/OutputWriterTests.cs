@@ -183,6 +183,60 @@ public sealed class OutputWriterTests : IDisposable
         Assert.Equal(3, Directory.GetFileSystemEntries(root).Length);
     }
 
+    [Fact]
+    public async Task File_commit_preserves_existing_directory_at_desired_path()
+    {
+        var desired = Path.Combine(root, "photo.png");
+        Directory.CreateDirectory(desired);
+        var sentinel = Path.Combine(desired, "original");
+        await File.WriteAllTextAsync(sentinel, "keep");
+        var output = await new OutputWriter().WriteFileAsync(desired, async (temporary, token) =>
+        {
+            Assert.Equal(".png", Path.GetExtension(temporary));
+            await File.WriteAllBytesAsync(temporary, [1, 2, 3, 255], token);
+        }, default);
+        Assert.NotEqual(desired, output);
+        Assert.True(File.Exists(output));
+        Assert.False(Directory.Exists(output));
+        Assert.Equal(".png", Path.GetExtension(output));
+        Assert.Equal(root, Path.GetDirectoryName(output));
+        Assert.Equal(new byte[] { 1, 2, 3, 255 }, await File.ReadAllBytesAsync(output));
+        Assert.True(Directory.Exists(desired));
+        Assert.False(File.Exists(desired));
+        Assert.Equal("keep", await File.ReadAllTextAsync(sentinel));
+        Assert.Equal(new[] { sentinel }, Directory.GetFileSystemEntries(desired));
+        Assert.Equal(new[] { desired, output }.OrderBy(path => path), Directory.GetFileSystemEntries(root).OrderBy(path => path));
+        Assert.DoesNotContain(Directory.GetFileSystemEntries(root), path => Path.GetFileName(path).StartsWith(".citrus-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Directory_commit_preserves_existing_file_at_desired_path()
+    {
+        var desired = Path.Combine(root, "archive");
+        var sentinel = new byte[] { 9, 8, 7 };
+        await File.WriteAllBytesAsync(desired, sentinel);
+        var output = await new OutputWriter().WriteDirectoryAsync(desired, async (temporary, token) =>
+        {
+            var nested = Path.Combine(temporary, "nested");
+            Directory.CreateDirectory(nested);
+            await File.WriteAllTextAsync(Path.Combine(nested, "entry.txt"), "complete", token);
+        }, default);
+        Assert.NotEqual(desired, output);
+        Assert.True(Directory.Exists(output));
+        Assert.False(File.Exists(output));
+        Assert.Equal(root, Path.GetDirectoryName(output));
+        var nestedOutput = Path.Combine(output, "nested");
+        var entry = Path.Combine(nestedOutput, "entry.txt");
+        Assert.Equal("complete", await File.ReadAllTextAsync(entry));
+        Assert.Equal(new[] { nestedOutput }, Directory.GetFileSystemEntries(output));
+        Assert.Equal(new[] { entry }, Directory.GetFileSystemEntries(nestedOutput));
+        Assert.True(File.Exists(desired));
+        Assert.False(Directory.Exists(desired));
+        Assert.Equal(sentinel, await File.ReadAllBytesAsync(desired));
+        Assert.Equal(new[] { desired, output }.OrderBy(path => path), Directory.GetFileSystemEntries(root).OrderBy(path => path));
+        Assert.DoesNotContain(Directory.GetFileSystemEntries(root), path => Path.GetFileName(path).StartsWith(".citrus-", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
