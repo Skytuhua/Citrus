@@ -18,6 +18,28 @@ Corresponding third-party sources and rebuild inputs are a separate free downloa
 
 Modifiers retain ordinary Windows behavior outside Citrus. Pause gestures or remap keys in Settings when they conflict with your workflow. Cloud placeholders must be available locally before use.
 
+## Choose a file action
+
+When using **Ctrl → Files** (or the keyboard-accessible operation picker in Home), Citrus provides resident native actions for your selection:
+
+| Action | What it does | Typical use |
+| --- | --- | --- |
+| **Copy files** | Places physical file references on the Windows clipboard with copy semantics. | Paste into another Explorer folder to create duplicate copies. |
+| **Copy paths** | Copies plain-text file paths (separated by newlines) to the clipboard. | Paste path strings into notes, tickets, or terminal commands. |
+| **Reveal** | Highlights the selected item in File Explorer. | Locate where a file lives on disk without opening it. |
+| **Open Terminal** | Opens Windows Terminal (or PowerShell) at the item's containing folder, or directly inside the selected folder. | Run commands or scripts in the working directory. |
+| **Float on shelf** | Gathers items into a topmost floating reference window without copying disk storage. | Stage files from multiple locations to drag or copy together later; removing a shelf entry only discards the reference, never the underlying file. |
+| **Move originals…** | Prompts for an explicit destination folder and relocates the original files. | Relocate files to an archive or project folder. Unlike conversion or editing actions, this modifies the location of your original source files. |
+
+Canceling the destination folder picker leaves originals unchanged. Closing Home leaves Citrus running. Quit waits for an in-progress move and worker cleanup instead of interrupting it. If a move fails partway through, already-relocated items remain at the destination, and the error reports known completed destinations.
+
+### Examples
+
+- **Collecting receipts:** Drag several expense PDFs from different folders, tap **Ctrl**, and select **Float on shelf** to hold them in a temporary palette while preparing a report.
+- **Moving project assets:** Select finished render files in Explorer, hold **Ctrl** during the drag to open the Files wheel, and choose **Move originals…** to select an archive folder on an external drive.
+
+For the full technical contract and shell interaction details, see [native actions and resident settings](native-actions-settings.md).
+
 ## Edit a copy
 
 Video tools show a playable picture. Trim uses range handles; Crop keeps the full source visible while its selection changes. Image adjustments offer an Original comparison. Audio tools provide waveforms and audition. **Apply**, **Compress** and other save actions create separate outputs; closing an unsubmitted editor discards its draft.
