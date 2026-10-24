@@ -84,6 +84,20 @@ class NativeVerifierTests(unittest.TestCase):
             (root / 'files/0256.bin').write_bytes(b'corrupt last work item')
             self.assertNotEqual(0, self.run_verifier(exe, root))
 
+    def test_hashing_across_stream_buffer_boundaries(self):
+        with tempfile.TemporaryDirectory(prefix='citrus-verifier-') as temp:
+            lengths = (0, 1, 4095, 4096, 4097, 65535, 65536, 65537,
+                1048575, 1048576, 1048577, 2097153)
+            names = {'%d.bin' % length: bytes([length % 256]) * length for length in lengths}
+            root, exe = self.fixture(Path(temp), names)
+            self.assertEqual(0, self.run_verifier(exe, root))
+            for length in lengths:
+                path = root / ('%d.bin' % length)
+                original = path.read_bytes()
+                path.write_bytes(original + b'corrupt boundary file')
+                self.assertNotEqual(0, self.run_verifier(exe, root))
+                path.write_bytes(original)
+
     def test_owned_paths_longer_than_260_characters_are_verified(self):
         with tempfile.TemporaryDirectory(prefix='citrus-verifier-') as temp:
             name = '/'.join(['nested-' + str(index) + '-' + 'a' * 35 for index in range(7)]) + '/owned.bin'

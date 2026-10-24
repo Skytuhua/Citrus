@@ -13,6 +13,12 @@ internal static class PayloadVerifier
     private static int next = -1, completed, failed;
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint GetFinalPathNameByHandle(IntPtr handle, StringBuilder path, uint capacity, uint flags);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    private static extern uint GetFileAttributesW(string path);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern uint GetErrorMode();
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern uint SetErrorMode(uint mode);
 
     private static string ExtendedPath(string path)
     {
@@ -21,9 +27,10 @@ internal static class PayloadVerifier
 
     private static void CheckPath(string path, bool directory)
     {
-        FileAttributes attributes = File.GetAttributes(ExtendedPath(path));
-        if ((attributes & FileAttributes.ReparsePoint) != 0 ||
-            ((attributes & FileAttributes.Directory) != 0) != directory)
+        uint attributes = GetFileAttributesW(ExtendedPath(path));
+        if (attributes == uint.MaxValue) throw new IOException("Cannot inspect payload path.");
+        if ((attributes & (uint)FileAttributes.ReparsePoint) != 0 ||
+            ((attributes & (uint)FileAttributes.Directory) != 0) != directory)
             throw new IOException("Unexpected linked or nonregular payload path.");
     }
 
@@ -51,6 +58,7 @@ internal static class PayloadVerifier
         try
         {
             StringBuilder pathBuffer = new StringBuilder(32768);
+            byte[] readBuffer = new byte[1048576];
             while (Volatile.Read(ref failed) == 0)
             {
                 int index = Interlocked.Increment(ref next);
@@ -62,10 +70,14 @@ internal static class PayloadVerifier
                 CheckPath(path, false);
                 using (SHA256 algorithm = SHA256.Create())
                 using (FileStream stream = new FileStream(ExtendedPath(path), FileMode.Open, FileAccess.Read, FileShare.Read,
-                    1048576, FileOptions.SequentialScan))
+                    4096, FileOptions.SequentialScan))
                 {
                     CheckOpenedPath(stream, path, pathBuffer);
-                    string actual = BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+                    int read;
+                    while ((read = stream.Read(readBuffer, 0, readBuffer.Length)) != 0)
+                        algorithm.TransformBlock(readBuffer, 0, read, null, 0);
+                    algorithm.TransformFinalBlock(readBuffer, 0, 0);
+                    string actual = BitConverter.ToString(algorithm.Hash).Replace("-", "").ToLowerInvariant();
                     if (!String.Equals(actual, PayloadManifest.Digests[index], StringComparison.Ordinal))
                         throw new IOException("Payload digest differs.");
                     CheckOpenedPath(stream, path, pathBuffer);
@@ -81,8 +93,10 @@ internal static class PayloadVerifier
 
     private static int Main(string[] args)
     {
+        uint previousErrorMode = GetErrorMode();
         try
         {
+            SetErrorMode(previousErrorMode | 1); // SEM_FAILCRITICALERRORS keeps verification noninteractive.
             if (args.Length != 1 || String.IsNullOrEmpty(args[0]) || !Path.IsPathRooted(args[0]) ||
                 args[0].EndsWith("\\", StringComparison.Ordinal) || args[0].IndexOf('/') >= 0 ||
                 args[0].StartsWith(@"\\?\", StringComparison.Ordinal) || args[0].StartsWith(@"\\.\", StringComparison.Ordinal) ||
@@ -118,6 +132,10 @@ internal static class PayloadVerifier
         catch (Exception)
         {
             return 23;
+        }
+        finally
+        {
+            SetErrorMode(previousErrorMode);
         }
     }
 }
