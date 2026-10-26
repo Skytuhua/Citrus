@@ -78,11 +78,8 @@ jobs:
         shell: pwsh
         run: |
           $toolRoot=Join-Path $env:RUNNER_TEMP 'citrus-nsis-3.11'
-          New-Item -ItemType Directory -Path $toolRoot | Out-Null
-          $archive=Join-Path $toolRoot 'nsis-3.11.zip'
-          Invoke-WebRequest 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip' -OutFile $archive
-          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ine 'c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1'){throw 'NSIS compiler archive hash mismatch'}
-          Expand-Archive -LiteralPath $archive -DestinationPath $toolRoot
+          python packaging/acquire-nsis.py --directory "$toolRoot"
+          if($LASTEXITCODE){throw 'Pinned compiler acquisition failed'}
           $compiler=Join-Path $toolRoot 'nsis-3.11/makensis.exe'
           if(!(Test-Path -LiteralPath $compiler -PathType Leaf)){throw 'Pinned compiler executable missing'}
           "MAKENSIS=$compiler" >> $env:GITHUB_ENV
@@ -118,6 +115,8 @@ jobs:
           if($LASTEXITCODE){throw 'Signing verification contracts failed'}
           python packaging/test-promote-release.py
           if($LASTEXITCODE){throw 'Release promotion contracts failed'}
+          python packaging/test-acquire-nsis.py
+          if($LASTEXITCODE){throw 'Pinned compiler acquisition contracts failed'}
           python packaging/test-parallel-verification.py
           if($LASTEXITCODE){throw 'Prepared parallel verifier trust contracts failed'}
           python packaging/test-payload-verifier-native.py
@@ -208,15 +207,15 @@ jobs:
           Write-Output 'Draft is complete. It is intentionally excluded from application update feeds until publication.'
       # Publication was explicitly requested for this preview. Other tags and manual
       # runs retain the existing draft-only preparation behavior.
-      - name: Publish verified preview.10
-        if: github.event_name == 'push' && github.ref == 'refs/tags/v0.3.0-preview.10' && env.CITRUS_SIGNING == 'unsigned'
+      - name: Publish verified preview.11
+        if: github.event_name == 'push' && github.ref == 'refs/tags/v0.3.0-preview.11' && env.CITRUS_SIGNING == 'unsigned'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $sourceCommit=(git rev-parse HEAD).Trim()
           if($LASTEXITCODE){throw 'Could not resolve the compiled source commit'}
-          python packaging/promote-release.py --repo "$env:GITHUB_REPOSITORY" --tag "$env:CITRUS_RELEASE_TAG" --source-commit "$sourceCommit" --signature NotSigned --dist dist --notes-file packaging/RELEASE-NOTES-preview.10.md
+          python packaging/promote-release.py --repo "$env:GITHUB_REPOSITORY" --tag "$env:CITRUS_RELEASE_TAG" --source-commit "$sourceCommit" --signature NotSigned --dist dist --notes-file packaging/RELEASE-NOTES-preview.11.md
           if($LASTEXITCODE){throw 'Verified preview publication failed; inspect the release state before retrying'}
       - uses: actions/upload-artifact@v4
         if: always()

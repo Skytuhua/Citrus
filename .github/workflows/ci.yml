@@ -37,6 +37,16 @@ jobs:
           if($LASTEXITCODE){throw 'Read-only payload verifier contracts failed'}
           python packaging/test-promote-release.py
           if($LASTEXITCODE){throw 'Release promotion contracts failed'}
+          python packaging/test-acquire-nsis.py
+          if($LASTEXITCODE){throw 'Pinned compiler acquisition contracts failed'}
+      # Verify the live dependency before assigning this replacement release tag.
+      - name: Acquire pinned compiler for preview.11 candidate
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/preview-11'
+        shell: pwsh
+        run: |
+          $toolRoot=Join-Path $env:RUNNER_TEMP 'citrus-nsis-source-check'
+          python packaging/acquire-nsis.py --directory "$toolRoot"
+          if($LASTEXITCODE){throw 'Live pinned compiler acquisition failed'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
