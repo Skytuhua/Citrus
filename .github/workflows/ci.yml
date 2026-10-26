@@ -40,8 +40,8 @@ jobs:
           python packaging/test-acquire-nsis.py
           if($LASTEXITCODE){throw 'Pinned compiler acquisition contracts failed'}
       # Verify the live dependency before assigning this replacement release tag.
-      - name: Acquire pinned compiler for preview.11 candidate
-        if: github.event_name == 'pull_request' && github.head_ref == 'release/preview-11'
+      - name: Acquire pinned compiler for release candidate
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
         shell: pwsh
         run: |
           $toolRoot=Join-Path $env:RUNNER_TEMP 'citrus-nsis-source-check'
