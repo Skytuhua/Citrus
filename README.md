@@ -4,9 +4,9 @@
 <p align="center"><strong>Convert files. Keep your flow.</strong></p>
 <p align="center">Open-source, offline file conversion and focused editors for Windows x64.<br>The current public preview is free to download and use. Choose a task from a compact wheel or the workspace. Save a separate result.</p>
 
-<p align="center"><a href="https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.9/Citrus-Setup.exe"><strong>Download the Windows installer →</strong></a> · <a href="docs/QUICKSTART.md">Quick start</a> · <a href="https://citrous.app">Website</a> · <a href="mailto:leo@citrous.app">Email support</a></p>
+<p align="center"><a href="https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/Citrus-Setup.exe"><strong>Download the Windows installer →</strong></a> · <a href="docs/QUICKSTART.md">Quick start</a> · <a href="https://citrous.app">Website</a> · <a href="mailto:leo@citrous.app">Email support</a></p>
 
-<p align="center">Windows x64 · v0.3.0-preview.9 · Unsigned preview · Complete offline engines</p>
+<p align="center">Windows x64 · v0.3.0-preview.12 · Unsigned preview · Complete offline engines</p>
 
 <p align="center"><a href="https://github.com/Skytuhua/Citrus/actions/workflows/ci.yml"><img src="https://github.com/Skytuhua/Citrus/actions/workflows/ci.yml/badge.svg?branch=main" alt="Source build and core contracts"></a> · <a href="LICENSE">MIT application license</a></p>
 
@@ -59,13 +59,13 @@ Drag trim or crop handles, scrub to a moment, and step through source frames.
 
 ## Install the preview
 
-1. Download **Citrus-Setup.exe** from the [download page](https://citrous.app/download/). It opens the standard installation wizard directly. Read the release notes and check **SHA256SUMS**.
+1. Download [**Citrus-Setup.exe**](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/Citrus-Setup.exe) from the [preview.12 release](https://github.com/Skytuhua/Citrus/releases/tag/v0.3.0-preview.12). It opens the standard installation wizard directly. Read the release notes and check [**SHA256SUMS**](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/SHA256SUMS).
 2. Verify that the release comes from the official Citrus repository before running the installer. It is **unsigned**, so Windows may report an unknown publisher. A matching checksum establishes consistency with the published file, not publisher identity or a guarantee of safety.
 3. Install for your Windows user, open Citrus and add a local file. Review the resulting copy, especially after lossy conversion or document reconstruction.
 
-Windows 11 x64 is recommended; the technical minimum is Windows 10 build 19041. No macOS, Linux or native ARM64 installer is supplied. Once downloaded, the installer needs no Internet connection: it includes the local runtime and all conversion engines. See the [download page](https://citrous.app/download/) for current transfer and installed sizes, and allow extra space for temporary files.
+Windows 11 x64 is recommended; the technical minimum is Windows 10 build 19041. No macOS, Linux or native ARM64 installer is supplied. Once downloaded, the installer needs no Internet connection: it includes the local runtime and all conversion engines. See the [preview.12 release](https://github.com/Skytuhua/Citrus/releases/tag/v0.3.0-preview.12) for transfer sizes and checksums, and allow extra space for the complete installed payload and temporary files.
 
-Third-party sources and rebuild inputs are available separately as **[Citrus-ThirdParty-Sources.zip](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.9/Citrus-ThirdParty-Sources.zip)** on the same release, with checksums. They are not needed to run Citrus. The installed `SOURCE-DOWNLOADS.md` records their exact version and integrity information. The smaller installer preserves every runtime engine and omits source archives, debugging symbols, unused Office spelling/thesaurus data and help pages from the installation. Fonts, hyphenation data and license notices remain included. Setup reduces repeated allocations during installed-file verification while retaining every SHA-256 check.
+Third-party sources and rebuild inputs are available separately as **[Citrus-ThirdParty-Sources.zip](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/Citrus-ThirdParty-Sources.zip)** on the same release, with checksums. They are not needed to run Citrus. The installed `SOURCE-DOWNLOADS.md` records their exact version and integrity information. The smaller installer preserves every runtime engine and omits source archives, debugging symbols, unused Office spelling/thesaurus data and help pages from the installation. Fonts, hyphenation data and license notices remain included. Setup reduces repeated allocations during installed-file verification while retaining every SHA-256 check.
 
 Closing the launcher leaves Citrus in the tray. Choose **Quit** from the tray to exit before updating or uninstalling. [Installation and uninstall help](docs/QUICKSTART.md).
 

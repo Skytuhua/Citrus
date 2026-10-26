@@ -1,14 +1,14 @@
 # Start with Citrus
 
-Download the Windows x64 preview from the [official download page](https://citrous.app/download/). Check the release's size and SHA-256. The installer is unsigned; a checksum establishes consistency with the published file, not a general guarantee of safety.
+Download [Citrus-Setup.exe](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/Citrus-Setup.exe) from the [official preview.12 release](https://github.com/Skytuhua/Citrus/releases/tag/v0.3.0-preview.12). Check the asset size and [SHA256SUMS](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/SHA256SUMS). The installer is unsigned; a checksum establishes consistency with the published file, not a general guarantee of safety.
 
 ## Install
 
-Download **Citrus-Setup.exe** and open it to start the standard installation wizard directly. The complete package includes its runtime and conversion engines, so setup needs no Internet connection after the download. Its current size and checksum are on the download page.
+Download **Citrus-Setup.exe** and open it to start the standard installation wizard directly. The complete package includes its runtime and conversion engines, so setup needs no Internet connection after the download. Its download size and checksum are on the same release.
 
-Close any running Citrus instance through its tray menu. Run the installer only after reviewing its origin and notices. It installs for your current Windows user under `%LOCALAPPDATA%\Programs\Citrus`; the complete package includes its runtime and offline engines. Read the Windows-component agreement and bundled open-source notices. Citrus works offline after installation. Allow the installed size shown on the download page, plus space for the downloaded installer and temporary files.
+Close any running Citrus instance through its tray menu. Run the installer only after reviewing its origin and notices. It installs for your current Windows user under `%LOCALAPPDATA%\Programs\Citrus`; the complete package includes its runtime and offline engines. Read the Windows-component agreement and bundled open-source notices. Citrus works offline after installation. Allow space for the complete installed payload, the downloaded installer and temporary files.
 
-Corresponding third-party sources and rebuild inputs are a separate free download on the same release. The installed `SOURCE-DOWNLOADS.md` gives their exact URL, checksum and preserved source paths. This source download is not needed for normal installation or use.
+[Corresponding third-party sources and rebuild inputs](https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.12/Citrus-ThirdParty-Sources.zip) are a separate free download on the same release. The installed `SOURCE-DOWNLOADS.md` gives their exact URL, checksum and preserved source paths. This source download is not needed for normal installation or use.
 
 ## Choose a task
 
