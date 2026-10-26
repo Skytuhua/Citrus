@@ -12,6 +12,10 @@ public sealed class WindowsOfficeStartupFactAttribute : FactAttribute
     }
 }
 
+[CollectionDefinition("Offline worker startup", DisableParallelization = true)]
+public sealed class OfflineWorkerStartupCollection;
+
+[Collection("Offline worker startup")]
 public sealed class OfflineWorkerStartupTests
 {
     [WindowsOfficeStartupFact]
@@ -57,8 +61,8 @@ public sealed class OfflineWorkerStartupTests
                 if (!unrelated.HasExited) unrelated.Kill(entireProcessTree: true);
                 await unrelated.WaitForExitAsync(); unrelated.Dispose();
             }
-            if (worker is not null) await worker;
-            OfflineStagingFiles.DeletePrivateTree(work);
+            try { if (worker is not null) await worker; }
+            finally { OfflineStagingFiles.DeletePrivateTree(work); }
         }
     }
 

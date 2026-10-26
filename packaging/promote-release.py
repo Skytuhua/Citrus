@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = 'Skytuhua/Citrus'
-TAG = 'v0.3.0-preview.11'
+TAG = 'v0.3.0-preview.12'
 NAMES = ('Citrus-Setup.exe', 'release-manifest.json', 'SHA256SUMS', 'Citrus-ThirdParty-Sources.zip', 'source-distribution.json')
 
 

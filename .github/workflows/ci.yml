@@ -43,7 +43,7 @@ jobs:
           if($LASTEXITCODE){throw 'Pinned engine hydration contracts failed'}
       # Verify the live dependency before assigning this replacement release tag.
       - name: Acquire pinned compiler for release candidate
-        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
+        if: github.event_name == 'pull_request' && (startsWith(github.head_ref, 'release/') || github.head_ref == 'fix/office-worker-startup')
         shell: pwsh
         run: |
           $toolRoot=Join-Path $env:RUNNER_TEMP 'citrus-nsis-source-check'

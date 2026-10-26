@@ -1,12 +1,21 @@
 # Changelog
 
-## 0.3.0-preview.11 — release candidate
+## 0.3.0-preview.12 — release candidate
+
+- Retain the editor and conversion performance changes and verified acquisition of the pinned installer compiler.
+- Restore sandboxed Office startup after fresh engine hydration without changing engine bytes or sandbox permissions.
+- Capture Office worker diagnostics directly and prevent unrelated processes from retaining private worker logs.
+- Prepare the follow-up candidate with Windows source, core, editor and native conversion checks required before publication.
+
+## 0.3.0-preview.11 — unpublished failed build
+
+Release preparation stopped during native conversion qualification before Python worker entry; no installer was published.
 
 - Include the editor and conversion performance changes reviewed in the unpublished preview.10 candidate.
 - Acquire NSIS 3.11 through bounded official download fallbacks, preserving the original archive and compiler hashes.
 - Record acquisition diagnostics and verify the compiler download on Windows before tagging the release.
 
-## 0.3.0-preview.10 — unpublished candidate
+## 0.3.0-preview.10 — unpublished failed build
 
 Release preparation stopped at the compiler archive integrity check; no installer was published.
 
