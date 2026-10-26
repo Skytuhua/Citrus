@@ -24,6 +24,8 @@ jobs:
         run: dotnet build Citrus.sln -c Release --no-restore -m:1
       - name: Core contracts
         run: dotnet test tests/Citrus.Core.Tests -c Release --no-build --no-restore --logger trx --results-directory TestResults/core
+      - name: Editor responsiveness contracts
+        run: dotnet test tests/Citrus.Windows.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~PdfPreviewBitmapTests|FullyQualifiedName~WorkspaceDragAdmissionTests|FullyQualifiedName~NativeActionsTests.Shelf_holds_references_prunes_missing_and_builds_copy_drag_for_whole_selection' --logger trx --results-directory TestResults/editor-responsiveness
       - name: Prepared installer verifier contracts
         shell: pwsh
         run: |
@@ -35,7 +37,7 @@ jobs:
         if: always()
         with:
           name: core-contract-results
-          path: TestResults/core
+          path: TestResults
           if-no-files-found: warn
       - name: Qualification scope
-        run: Write-Output 'Source build and core contracts only. Offline engine acquisition, native workflows, output fidelity and installer qualification are separate release checks.'
+        run: Write-Output 'Source build, core contracts and bounded PDF bitmap/drag admission/shelf tests only. Offline engine acquisition, full native workflows, output fidelity and installer qualification are separate release checks.'

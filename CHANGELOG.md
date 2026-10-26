@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0-preview.10 — release candidate
+
+- Reuse editor-validation metadata and build numeric error messages only when needed, preserving ordered validation results.
+- Skip neutral image color processing and inactive whites/blacks calculations while preserving checked exact and scaled pixels.
+- Decode HEIC and HEIF rasters once per load instead of twice, retaining the helper's bounds, color and cancellation checks.
+- Decode and freeze PDF preview bitmaps on bounded background workers; reject canceled or superseded results before display.
+- Reuse one lazily initialized OCR engine within each PDF extraction, with operation-local lifetime and unchanged page processing.
+- Refresh shelf metadata off the UI thread with one refresh at a time and stale-result protection.
+- Reuse file-drop admission only within a drag; keep fresh validation when files are actually added.
+- Add performance regression checks and require conversion and PDF preview contracts in release preparation.
+
 ## 0.3.0-preview.9 — 2026-10-23
 
 - Verify installed files with four bounded workers on Windows while retaining every checksum and rollback check.

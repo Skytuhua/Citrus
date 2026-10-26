@@ -26,6 +26,7 @@ public static class PdfSemanticExtractor
         if (input.IsEncrypted) throw new NotSupportedException("Encrypted PDFs are not supported.");
         if(selected.Count is <1 or >10000)throw new NotSupportedException("Select 1–10,000 PDF pages.");
         var pages = ImmutableArray.CreateBuilder<PdfSemanticPage>(); var warnings = ImmutableArray.CreateBuilder<string>();
+        using var ocrSession = new OcrSession();
         long imageBytes=0;int textObjects=0;
         foreach (int number in selected)
         {
@@ -77,7 +78,7 @@ public static class PdfSemanticExtractor
                     .Select(image=>Math.Min(image.WidthInSamples*72d/image.BoundingBox.Width,image.HeightInSamples*72d/image.BoundingBox.Height)).Where(double.IsFinite).ToArray();
                 int ocrDpi=scanDpis.Length==0?300:(int)Math.Clamp(Math.Round(scanDpis.Min()),72,300);
                 byte[] png = await PdfEngine.RenderPageAsync(path, number, ocrDpi, ct).ConfigureAwait(false);
-                using var pix = Pix.LoadFromMemory(png); using var engine = new TesseractEngine(data,"eng",EngineMode.LstmOnly);
+                using var pix = Pix.LoadFromMemory(png); var engine = ocrSession.GetEngine(data);
                 var recognizedWords = new List<(string Text, Tesseract.Rect Box, float Confidence)>();
                 using (var recognized = engine.Process(pix)) using (var iterator = recognized.GetIterator())
                 {
@@ -131,6 +132,15 @@ public static class PdfSemanticExtractor
         warnings.Add("PDF reconstruction is best effort; verify fonts, reading order, artwork and tables before using the copy.");
         return new PdfSemanticDocument(pages.ToImmutable(),warnings.Distinct().ToImmutableArray());
     },ct);
+    // Load the LSTM model only when a raster page needs OCR, and keep it local to
+    // this extraction. Each processed page/cell is disposed before the next one;
+    // Process(pix) restores Auto segmentation after SingleBlock table fallbacks.
+    private sealed class OcrSession : IDisposable
+    {
+        private TesseractEngine? engine;
+        public TesseractEngine GetEngine(string data) => engine ??= new TesseractEngine(data,"eng",EngineMode.LstmOnly);
+        public void Dispose() => engine?.Dispose();
+    }
     private static bool Contains(RectD box,double x,double y) => x >= box.X && x <= box.X+box.Width && y >= box.Y && y <= box.Y+box.Height;
     private static ImmutableArray<PdfTableObject> FindScannedTables(byte[] png,List<(string Text,Tesseract.Rect Box,float Confidence)> words,double pageWidth,double pageHeight,TesseractEngine engine,Pix pix,CancellationToken ct)
     {

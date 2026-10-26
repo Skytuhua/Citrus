@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Citrus.Core;
@@ -7,29 +6,33 @@ namespace Citrus.Windows;
 
 public partial class ShelfWindow : Window, IDisposable
 {
-    private readonly ObservableCollection<string> references = [];
+    private readonly ShelfReferences references = new();
     private readonly DispatcherTimer timer;
     private Point dragStart;
     private bool disposed, closed;
-    public IReadOnlyList<string> Paths => references.ToArray();
+    public IReadOnlyList<string> Paths => references.Items.ToArray();
     public ShelfWindow()
     {
         InitializeComponent();
         Citrus.Windows.Presentation.WindowChromeSetup.Apply(this);
-        References.ItemsSource = references;
-        timer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => RefreshReferences(), Dispatcher);
+        References.ItemsSource = references.Items;
+        timer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, RefreshOnTimer, Dispatcher);
         Closed += (_, _) => { closed = true; Dispose(); };
         (Application.Current as App)?.AttachPresentation(this, Chrome);
     }
     public void AddPaths(IReadOnlyList<string> paths)
     {
         foreach (var path in FileActions.Validate(paths))
-            if (!references.Contains(path, StringComparer.OrdinalIgnoreCase)) references.Add(path);
+            references.Add(path);
     }
     public void RefreshReferences()
     {
-        foreach (var path in references.ToArray())
-            if (!DropValidation.Accepts([path], OperationMode.Actions) || (!File.Exists(path) && !Directory.Exists(path))) references.Remove(path);
+        references.ValidateSelection(references.Items.ToArray());
+    }
+    private async void RefreshOnTimer(object? sender, EventArgs e)
+    {
+        try { await references.RefreshAsync(); }
+        catch (OperationCanceledException) when (disposed) { }
     }
     private string[] Selected() => References.SelectedItems.Cast<string>().ToArray();
     private void DragStarted(object sender, MouseButtonEventArgs e) => dragStart = e.GetPosition(this);
@@ -38,16 +41,14 @@ public partial class ShelfWindow : Window, IDisposable
         if (e.LeftButton != MouseButtonState.Pressed) return;
         Point current = e.GetPosition(this);
         if (Math.Abs(current.X - dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(current.Y - dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        RefreshReferences();
-        var paths = Selected();
+        var paths = references.ValidateSelection(Selected());
         if (paths.Length == 0) return;
         try { DragDrop.DoDragDrop(References, FileActions.CreateCopyData(paths), DragDropEffects.Copy); }
         catch (IOException error) { MessageBox.Show(this, error.Message, "Citrus shelf"); }
     }
     private async void CopySelected(object sender, RoutedEventArgs e)
     {
-        RefreshReferences();
-        if (Selected() is not { Length: > 0 } paths) return;
+        if (references.ValidateSelection(Selected()) is not { Length: > 0 } paths) return;
         try { await new FileActions().ExecuteAsync("action.copy", paths); }
         catch (Exception error) { MessageBox.Show(this, error.Message, "Citrus shelf"); }
     }
@@ -57,5 +58,5 @@ public partial class ShelfWindow : Window, IDisposable
         if (e.Key == Key.Delete) { RemoveSelected(sender, e); e.Handled = true; }
         else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control) { CopySelected(sender, e); e.Handled = true; }
     }
-    public void Dispose() { if (disposed) return; disposed = true; timer.Stop(); if (!closed) Close(); }
+    public void Dispose() { if (disposed) return; disposed = true; timer.Stop(); references.Dispose(); if (!closed) Close(); }
 }

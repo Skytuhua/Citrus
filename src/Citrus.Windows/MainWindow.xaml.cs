@@ -12,6 +12,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly App app;
     private OperationCatalog? catalog;
     private readonly WorkspaceSelection selection = new();
+    private readonly WorkspaceDragAdmission dragAdmission = new();
     private readonly IFilePreviewService previews;
     private CancellationTokenSource? previewCancellation;
     private long previewGeneration;
@@ -39,7 +40,7 @@ public partial class MainWindow : Window, IDisposable
         {
             if (disposed) return;
             if (IsVisible) await RefreshPreviewAsync();
-            else StopPreview();
+            else { dragAdmission.Clear(); StopPreview(); }
         };
         (Application.Current as App)?.AttachPresentation(this, Chrome);
     }
@@ -110,12 +111,21 @@ public partial class MainWindow : Window, IDisposable
     private void FilesDragOver(object sender, DragEventArgs e)
     {
         e.Handled = true; e.Effects = DragDropEffects.None;
-        if (e.AllowedEffects.HasFlag(DragDropEffects.Copy) && e.Data.GetDataPresent(DataFormats.FileDrop, false) && e.Data.GetData(DataFormats.FileDrop, false) is string[] paths && DropValidation.Accepts(paths, OperationMode.Actions)) e.Effects = DragDropEffects.Copy;
+        if (!e.AllowedEffects.HasFlag(DragDropEffects.Copy)) { dragAdmission.Clear(); return; }
+        if (dragAdmission.Accepts(e.Data, OperationMode.Actions, () => ReadDroppedFiles(e.Data))) e.Effects = DragDropEffects.Copy;
     }
+    private static string[]? ReadDroppedFiles(IDataObject data) => data.GetDataPresent(DataFormats.FileDrop, false) ? data.GetData(DataFormats.FileDrop, false) as string[] : null;
+    private void FilesDragEntered(object sender, DragEventArgs e) => dragAdmission.Clear();
+    private void FilesDragLeft(object sender, DragEventArgs e) => dragAdmission.Clear();
     private void FilesDropped(object sender, DragEventArgs e)
     {
-        FilesDragOver(sender, e);
-        if (e.Effects == DragDropEffects.Copy && e.Data.GetData(DataFormats.FileDrop, false) is string[] paths) AddFiles(paths);
+        dragAdmission.Clear();
+        e.Handled = true; e.Effects = DragDropEffects.None;
+        if (e.AllowedEffects.HasFlag(DragDropEffects.Copy) && ReadDroppedFiles(e.Data) is { } paths && DropValidation.Accepts(paths, OperationMode.Actions))
+        {
+            e.Effects = DragDropEffects.Copy;
+            AddFiles(paths);
+        }
     }
     private async void FileSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -167,7 +177,7 @@ public partial class MainWindow : Window, IDisposable
     private void ClearFiles(object sender, RoutedEventArgs e) { selection.Clear(); SelectedFiles.SelectedItem = null; }
     private void IncludeAll(object sender, RoutedEventArgs e) => selection.SetAllIncluded(true);
     private void ExcludeAll(object sender, RoutedEventArgs e) => selection.SetAllIncluded(false);
-    private void ModeChanged(object sender, SelectionChangedEventArgs e) { if (Operations is not null) RefreshOperations(); }
+    private void ModeChanged(object sender, SelectionChangedEventArgs e) { dragAdmission.Clear(); if (Operations is not null) RefreshOperations(); }
     private void OperationChanged(object sender, SelectionChangedEventArgs e) => UpdateInspector();
     private void UpdateInspector()
     {
@@ -350,6 +360,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (disposed) return;
         disposed = true;
+        dragAdmission.Clear();
         StopPreview();
         selection.MembershipChanged -= MembershipChanged;
         demo?.Close(); demo = null;

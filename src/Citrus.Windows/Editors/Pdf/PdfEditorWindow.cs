@@ -315,7 +315,11 @@ public sealed class PdfEditorWindow : Window
         try
         {
             byte[] png=await PdfEngine.RenderPageAsync(staged[item.Page.SourceId],item.Page.OneBasedPage,100,ct);
-            if(closing||generation!=previewGeneration) return;var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.StreamSource=new MemoryStream(png);image.Rotation=(Rotation)item.Page.QuarterTurns;image.EndInit();image.Freeze();preview.Source=image;
+            if(closing||generation!=previewGeneration||ct.IsCancellationRequested)return;
+            using var stream=new MemoryStream(png);
+            var image=await PdfPreviewBitmap.DecodeAsync(stream,(Rotation)item.Page.QuarterTurns,0,0,ct);
+            if(closing||generation!=previewGeneration||ct.IsCancellationRequested)return;
+            preview.Source=image;
         }
         catch(OperationCanceledException) when(ct.IsCancellationRequested) { }
         catch(Exception failure) when(failure is not OutOfMemoryException) { if(!closing && generation==previewGeneration) error.Text=failure.Message; }
@@ -334,10 +338,13 @@ public sealed class PdfEditorWindow : Window
                 if(generation!=thumbnailGeneration)break;
                 if(item.Thumbnail is not null)continue;
                 byte[] png=await PdfEngine.RenderPageAsync(staged[item.Page.SourceId],item.Page.OneBasedPage,48,lifetime.Token);
-                if(closing)return;var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;
+                if(closing||generation!=thumbnailGeneration)return;
                 int pixelWidth=System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16,4)),pixelHeight=System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4));
-                if(pixelWidth/(double)pixelHeight>1.4)image.DecodePixelWidth=Math.Min(140,pixelWidth);else image.DecodePixelHeight=Math.Min(100,pixelHeight);
-                image.StreamSource=new MemoryStream(png);image.Rotation=(Rotation)item.Page.QuarterTurns;image.EndInit();image.Freeze();item.Thumbnail=image;thumbnailLru.Enqueue(item);
+                bool wide=pixelWidth/(double)pixelHeight>1.4;
+                using var stream=new MemoryStream(png);
+                var image=await PdfPreviewBitmap.DecodeAsync(stream,(Rotation)item.Page.QuarterTurns,wide?Math.Min(140,pixelWidth):0,wide?0:Math.Min(100,pixelHeight),lifetime.Token);
+                if(closing||generation!=thumbnailGeneration||lifetime.IsCancellationRequested)return;
+                item.Thumbnail=image;thumbnailLru.Enqueue(item);
                 while(thumbnailLru.Count>128)thumbnailLru.Dequeue().Thumbnail=null;
             }
         }

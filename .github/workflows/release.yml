@@ -99,6 +99,12 @@ jobs:
           if($LASTEXITCODE){throw 'Core contracts failed'}
           dotnet test tests/Citrus.Windows.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Update'
           if($LASTEXITCODE){throw 'Managed updater contracts failed'}
+          $env:CITRUS_TEST_FFMPEG=Join-Path $pwd 'packaging/media/win-x64/ffmpeg.exe'
+          $env:CITRUS_TEST_FFPROBE=Join-Path $pwd 'packaging/media/win-x64/ffprobe.exe'
+          dotnet test tests/Citrus.Conversion.Tests -c Release --no-build --no-restore --logger trx --results-directory TestResults/conversion
+          if($LASTEXITCODE){throw 'Offline conversion contracts failed'}
+          dotnet test tests/Citrus.Windows.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~PdfPreviewBitmapTests|FullyQualifiedName~WorkspaceDragAdmissionTests|FullyQualifiedName~NativeActionsTests.Shelf_holds_references_prunes_missing_and_builds_copy_drag_for_whole_selection' --logger trx --results-directory TestResults/editor-responsiveness
+          if($LASTEXITCODE){throw 'Editor responsiveness contracts failed'}
       - name: Verify updater metadata and real isolated installer transitions
         shell: pwsh
         run: |
@@ -212,4 +218,5 @@ jobs:
             .local/setup-hash-*/compile.log
             .local/setup-hash-*/native.log
             .local/setup-hash-*/results.txt
+            TestResults
           if-no-files-found: warn

@@ -34,6 +34,10 @@ internal static class ImageRasterSource
     }
     internal static MagickImage Load(string path, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+        // The HEIC helper bounds the image before decoding; Load validates the returned
+        // pixel lengths and normalizes color/orientation. Inspection would decode it again.
+        if (Path.GetExtension(path).ToLowerInvariant() is ".heic" or ".heif") return HeicCodec.Load(path, ct);
         var expected = Inspect(path, ct); // Explicit, bounded ping MUST precede pixel allocation.
         var image = ValidatedImageLoader.Load(path, ct);
         try
