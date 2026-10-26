@@ -18,28 +18,33 @@ public static class ImageAdjustmentsPipeline
         if (IsIdentity(a)) return;
         int width = (int)image.Width, height = (int)image.Height;
         byte[] pixels = image.GetPixels().ToByteArray(PixelMapping.RGBA)!;
-        double[] tone = new double[256]; for (int i = 0; i < tone.Length; i++) tone[i] = Tone(i / 255d, a);
-        double redGain = Math.Pow(2, .5 * a.Warmth - .25 * a.Tint), greenGain = Math.Pow(2, .5 * a.Tint), blueGain = Math.Pow(2, -.5 * a.Warmth - .25 * a.Tint);
-        // Tone/color kernel uses double precision with one Q8 boundary per stage.
-        for (int y = 0; y < height; y++)
+        // Spatial/effect-only edits retain their original Q8 input; no tone table or color pass is needed.
+        if (!IsColorIdentity(a))
         {
-            ct.ThrowIfCancellationRequested();
-            for (int x = 0; x < width; x++)
+            double[] tone = new double[256]; for (int i = 0; i < tone.Length; i++) tone[i] = Tone(i / 255d, a);
+            double redGain = Math.Pow(2, .5 * a.Warmth - .25 * a.Tint), greenGain = Math.Pow(2, .5 * a.Tint), blueGain = Math.Pow(2, -.5 * a.Warmth - .25 * a.Tint);
+            // Tone/color kernel uses double precision with one Q8 boundary per stage.
+            for (int y = 0; y < height; y++)
             {
-                int i = (y * width + x) * 4;
-                double r = tone[pixels[i]], g = tone[pixels[i + 1]], b = tone[pixels[i + 2]];
-                double l = Luma(r, g, b), delta = .25 * (a.Shadows * (1 - l) * (1 - l) + a.Highlights * l * l)
-                    + .25 * (a.Blacks * Math.Pow(1 - l, 4) + a.Whites * Math.Pow(l, 4));
-                if (l > 1e-12) { double gain = Math.Max(0, l + delta) / l; r *= gain; g *= gain; b *= gain; } else r = g = b = Math.Max(0, delta);
-                l = Luma(r, g, b);
-                double chroma = Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b));
-                double saturation = a.Saturation * (1 + a.Vibrance * (1 - Clamp(chroma)));
-                r = l + saturation * (r - l); g = l + saturation * (g - l); b = l + saturation * (b - l);
-                if (a.HueDegrees != 0) RotateHue(ref r, ref g, ref b, a.HueDegrees);
-                r *= redGain; g *= greenGain; b *= blueGain;
-                pixels[i] = Byte(r); pixels[i + 1] = Byte(g); pixels[i + 2] = Byte(b);
+                ct.ThrowIfCancellationRequested();
+                for (int x = 0; x < width; x++)
+                {
+                    int i = (y * width + x) * 4;
+                    double r = tone[pixels[i]], g = tone[pixels[i + 1]], b = tone[pixels[i + 2]];
+                    double l = Luma(r, g, b), delta = .25 * (a.Shadows * (1 - l) * (1 - l) + a.Highlights * l * l)
+                        + .25 * ((a.Blacks == 0 ? 0 : a.Blacks * Math.Pow(1 - l, 4)) + (a.Whites == 0 ? 0 : a.Whites * Math.Pow(l, 4)));
+                    if (l > 1e-12) { double gain = Math.Max(0, l + delta) / l; r *= gain; g *= gain; b *= gain; } else r = g = b = Math.Max(0, delta);
+                    l = Luma(r, g, b);
+                    double chroma = Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b));
+                    double saturation = a.Saturation * (1 + a.Vibrance * (1 - Clamp(chroma)));
+                    r = l + saturation * (r - l); g = l + saturation * (g - l); b = l + saturation * (b - l);
+                    if (a.HueDegrees != 0) RotateHue(ref r, ref g, ref b, a.HueDegrees);
+                    r *= redGain; g *= greenGain; b *= blueGain;
+                    pixels[i] = Byte(r); pixels[i + 1] = Byte(g); pixels[i + 2] = Byte(b);
+                }
             }
         }
+        ct.ThrowIfCancellationRequested();
         if (a.Clarity > 0)
         {
             byte[] low = Blur(pixels, width, height, 12 * renderScale, ct, luminance: true);
@@ -103,7 +108,8 @@ public static class ImageAdjustmentsPipeline
         using var target = image.GetPixels();
         target.SetPixels(pixels);
     }
-    private static bool IsIdentity(ImageAdjustments a) => a.ExposureEv == 0 && a.Brightness == 0 && a.Contrast == 0 && a.Gamma == 1 && a.Highlights == 0 && a.Shadows == 0 && a.Whites == 0 && a.Blacks == 0 && a.Saturation == 1 && a.Vibrance == 0 && a.HueDegrees == 0 && a.Warmth == 0 && a.Tint == 0 && a.Clarity == 0 && a.Dehaze == 0 && a.Sharpen == 0 && a.Denoise == 0 && a.BlurSigma == 0 && a.Vignette == 0 && a.Grain == 0 && (a.Effect == PhotoEffect.None || a.EffectAmount == 0);
+    private static bool IsColorIdentity(ImageAdjustments a) => a.ExposureEv == 0 && a.Brightness == 0 && a.Contrast == 0 && a.Gamma == 1 && a.Highlights == 0 && a.Shadows == 0 && a.Whites == 0 && a.Blacks == 0 && a.Saturation == 1 && a.Vibrance == 0 && a.HueDegrees == 0 && a.Warmth == 0 && a.Tint == 0;
+    private static bool IsIdentity(ImageAdjustments a) => IsColorIdentity(a) && a.Clarity == 0 && a.Dehaze == 0 && a.Sharpen == 0 && a.Denoise == 0 && a.BlurSigma == 0 && a.Vignette == 0 && a.Grain == 0 && (a.Effect == PhotoEffect.None || a.EffectAmount == 0);
     private static double Tone(double v, ImageAdjustments a)
     {
         if (a.ExposureEv != 0) { double linear = v <= .04045 ? v / 12.92 : Math.Pow((v + .055) / 1.055, 2.4); linear *= Math.Pow(2, a.ExposureEv); v = linear <= .0031308 ? 12.92 * linear : 1.055 * Math.Pow(linear, 1 / 2.4) - .055; }

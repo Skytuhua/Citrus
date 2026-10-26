@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Numerics;
@@ -10,7 +11,11 @@ public static class EditorRecipeValidator
     {
         var errors = ImmutableArray.CreateBuilder<ValidationIssue>();
         void Check(bool valid, string field, string message) { if (!valid) errors.Add(new(field, message)); }
-        void Number(double value, double min, double max, string field) => Check(double.IsFinite(value) && value >= min && value <= max, field, $"Must be finite and between {min} and {max}.");
+        void Number(double value, double min, double max, string field)
+        {
+            if (!(double.IsFinite(value) && value >= min && value <= max))
+                errors.Add(new(field, $"Must be finite and between {min} and {max}."));
+        }
         void Size(SizeI size, string field) => Check(size.Width is > 0 and <= 16384 && size.Height is > 0 and <= 16384 && (long)size.Width * size.Height <= 64_000_000, field, "Invalid size or pixel budget exceeded.");
         void Rect(RectD r, string field) { Number(r.X, 0, 16384, field); Number(r.Y, 0, 16384, field); Number(r.Width, double.Epsilon, 16384, field); Number(r.Height, double.Epsilon, 16384, field); }
         void Ids(IEnumerable<Guid> ids, string field) { var array = ids.ToArray(); Check(!array.Contains(Guid.Empty) && array.Distinct().Count() == array.Length, field, "IDs must be nonempty and unique."); }
@@ -240,6 +245,27 @@ public static class EditorRecipeValidator
 
     private static bool IsHash(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
 
+    private sealed record StructureMetadata(PropertyInfo? IsDefault, StructureProperty[] Properties);
+    private readonly record struct StructureProperty(PropertyInfo Property, bool AllowsNull);
+    private static readonly ConcurrentDictionary<Type, StructureMetadata> StructureMetadataCache = new();
+
+    private static StructureMetadata DescribeStructure(Type type)
+    {
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableArray<>))
+            return new(type.GetProperty("IsDefault")!, []);
+
+        // Cache only immutable reflection metadata. Each factory has its own nullability context,
+        // so concurrent validations never share mutable NullabilityInfoContext state.
+        var nullability = new NullabilityInfoContext();
+        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.GetIndexParameters().Length == 0)
+            .Select(property => new StructureProperty(property,
+                Nullable.GetUnderlyingType(property.PropertyType) is not null ||
+                nullability.Create(property).ReadState == NullabilityState.Nullable))
+            .ToArray();
+        return new(null, properties);
+    }
+
     // A closed record graph has no cycles; nullable properties are allowed, required ones are rejected.
     private static void ValidateStructure(object? value, string path, ImmutableArray<ValidationIssue>.Builder errors)
     {
@@ -248,19 +274,19 @@ public static class EditorRecipeValidator
         if (type.IsEnum) { if (!Enum.IsDefined(type,value)) errors.Add(new(path,"Unknown enum value.")); return; }
         if (value is double d) { if (!double.IsFinite(d)) errors.Add(new(path,"Nonfinite value.")); return; }
         if (type.IsPrimitive || value is string or decimal or DateTime or TimeSpan or Guid) return;
-        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableArray<>))
+        var metadata = StructureMetadataCache.GetOrAdd(type, DescribeStructure);
+        if (metadata.IsDefault is { } isDefault)
         {
-            if ((bool)type.GetProperty("IsDefault")!.GetValue(value)!) { errors.Add(new(path,"Array is uninitialized.")); return; }
+            if ((bool)isDefault.GetValue(value)!) { errors.Add(new(path,"Array is uninitialized.")); return; }
             int index = 0;
             foreach (var item in (System.Collections.IEnumerable)value) ValidateStructure(item,$"{path}[{index++}]",errors);
             return;
         }
-        var nullability = new NullabilityInfoContext();
-        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        foreach (var entry in metadata.Properties)
         {
-            if (property.GetIndexParameters().Length != 0) continue;
+            var property = entry.Property;
             var child = property.GetValue(value);
-            if (child is null && (Nullable.GetUnderlyingType(property.PropertyType) is not null || nullability.Create(property).ReadState == NullabilityState.Nullable)) continue;
+            if (child is null && entry.AllowsNull) continue;
             ValidateStructure(child,path + "." + property.Name,errors);
         }
     }

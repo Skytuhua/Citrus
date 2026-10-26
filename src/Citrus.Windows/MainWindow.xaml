@@ -13,7 +13,7 @@
  <Grid x:Name="LauncherRoot" Grid.Row="1" Visibility="Collapsed" Margin="24,16,24,20">
   <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ScrollViewer x:Name="LauncherScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"><StackPanel>
-   <Border Background="{DynamicResource PanelBackground}" CornerRadius="18" Padding="24" AllowDrop="True" PreviewDragOver="FilesDragOver" PreviewDrop="FilesDropped" AutomationProperties.Name="Drop a file">
+   <Border x:Name="LauncherDropZone" Background="{DynamicResource PanelBackground}" CornerRadius="18" Padding="24" AllowDrop="True" PreviewDragEnter="FilesDragEntered" PreviewDragLeave="FilesDragLeft" PreviewDragOver="FilesDragOver" PreviewDrop="FilesDropped" AutomationProperties.Name="Drop a file">
     <StackPanel><Image Source="{StaticResource CitrusMark}" Width="44" Height="44" Margin="0,0,0,12"/><TextBlock Text="Drop a file" FontSize="{DynamicResource EditorTitleSize}" FontWeight="SemiBold" HorizontalAlignment="Center"/><Button Content="Add files…" Click="ChooseFiles" Style="{DynamicResource MenuPrimaryButton}" HorizontalAlignment="Center" MinWidth="132" Margin="0,16,0,0"/></StackPanel>
    </Border>
    <TextBlock Text="Drag in Explorer, then tap a key." Style="{StaticResource Metadata}" TextWrapping="Wrap" Margin="4,20,4,8"/>
@@ -41,7 +41,7 @@
    <Grid x:Name="WorkspaceGrid">
     <Grid.ColumnDefinitions><ColumnDefinition x:Name="FileColumn" Width="*"/><ColumnDefinition x:Name="OperationColumn" Width="*"/></Grid.ColumnDefinitions>
     <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <Grid x:Name="FilesPanel" Margin="0,0,24,0" AllowDrop="True" PreviewDragOver="FilesDragOver" PreviewDrop="FilesDropped" AutomationProperties.Name="Drop files and folders here">
+    <Grid x:Name="FilesPanel" Margin="0,0,24,0" AllowDrop="True" PreviewDragEnter="FilesDragEntered" PreviewDragLeave="FilesDragLeft" PreviewDragOver="FilesDragOver" PreviewDrop="FilesDropped" AutomationProperties.Name="Drop files and folders here">
      <Grid.RowDefinitions><RowDefinition Height="*" MinHeight="150"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="{DynamicResource InsetBackground}" CornerRadius="16" Padding="12">
       <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -69,7 +69,7 @@
       <ListBox.ItemTemplate><DataTemplate><DockPanel><Path Data="{Binding Icon}" Width="20" Height="20" Stretch="Uniform" Stroke="{DynamicResource SecondaryText}" StrokeThickness="1.5" Margin="0,0,12,0"/><StackPanel><TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Summary}" Margin="0,2,0,0"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Metadata}"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></DockPanel></DataTemplate></ListBox.ItemTemplate>
      </ListBox>
     </Grid>
-    <Border x:Name="EmptyState" Grid.ColumnSpan="2" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="20" Padding="24" AllowDrop="True" PreviewDragOver="FilesDragOver" PreviewDrop="FilesDropped" AutomationProperties.Name="Drop files to begin">
+    <Border x:Name="EmptyState" Grid.ColumnSpan="2" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="20" Padding="24" AllowDrop="True" PreviewDragEnter="FilesDragEntered" PreviewDragLeave="FilesDragLeft" PreviewDragOver="FilesDragOver" PreviewDrop="FilesDropped" AutomationProperties.Name="Drop files to begin">
      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"><Image Source="{StaticResource CitrusMark}" Width="56" Height="56" Margin="0,0,0,20"/><TextBlock Text="Drop your files" FontSize="{DynamicResource EditorTitleSize}" LineHeight="{DynamicResource EditorLeading}" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/><Button Content="Add files" Click="ChooseFiles" MinWidth="140" HorizontalAlignment="Center" Margin="0,24,0,0"/><Button Content="Add a folder" Click="ChooseFolder" Style="{DynamicResource TertiaryButton}" Margin="0,8,0,0" HorizontalAlignment="Center"/></StackPanel>
     </Border>
    </Grid>

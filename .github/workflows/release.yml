@@ -1,4 +1,4 @@
-name: Prepare verified Windows release draft
+name: Prepare verified Windows release
 on:
   push:
     tags: ['v*']
@@ -99,6 +99,12 @@ jobs:
           if($LASTEXITCODE){throw 'Core contracts failed'}
           dotnet test tests/Citrus.Windows.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Update'
           if($LASTEXITCODE){throw 'Managed updater contracts failed'}
+          $env:CITRUS_TEST_FFMPEG=Join-Path $pwd 'packaging/media/win-x64/ffmpeg.exe'
+          $env:CITRUS_TEST_FFPROBE=Join-Path $pwd 'packaging/media/win-x64/ffprobe.exe'
+          dotnet test tests/Citrus.Conversion.Tests -c Release --no-build --no-restore --logger trx --results-directory TestResults/conversion
+          if($LASTEXITCODE){throw 'Offline conversion contracts failed'}
+          dotnet test tests/Citrus.Windows.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~PdfPreviewBitmapTests|FullyQualifiedName~WorkspaceDragAdmissionTests|FullyQualifiedName~NativeActionsTests.Shelf_holds_references_prunes_missing_and_builds_copy_drag_for_whole_selection' --logger trx --results-directory TestResults/editor-responsiveness
+          if($LASTEXITCODE){throw 'Editor responsiveness contracts failed'}
       - name: Verify updater metadata and real isolated installer transitions
         shell: pwsh
         run: |
@@ -110,6 +116,8 @@ jobs:
           if($LASTEXITCODE){throw 'Publish output path guards failed'}
           python packaging/test-signpath.py
           if($LASTEXITCODE){throw 'Signing verification contracts failed'}
+          python packaging/test-promote-release.py
+          if($LASTEXITCODE){throw 'Release promotion contracts failed'}
           python packaging/test-parallel-verification.py
           if($LASTEXITCODE){throw 'Prepared parallel verifier trust contracts failed'}
           python packaging/test-payload-verifier-native.py
@@ -198,6 +206,18 @@ jobs:
           $sourceAsset=@($release.assets|Where-Object name -ceq 'Citrus-ThirdParty-Sources.zip')
           if($sourceAsset.Count -ne 1 -or $sourceAsset[0].size -ne $expected.sources.bytes -or $sourceAsset[0].digest -cne ('sha256:'+$expected.sources.sha256)){throw 'Corresponding-source draft digest/size verification failed'}
           Write-Output 'Draft is complete. It is intentionally excluded from application update feeds until publication.'
+      # Publication was explicitly requested for this preview. Other tags and manual
+      # runs retain the existing draft-only preparation behavior.
+      - name: Publish verified preview.10
+        if: github.event_name == 'push' && github.ref == 'refs/tags/v0.3.0-preview.10' && env.CITRUS_SIGNING == 'unsigned'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $sourceCommit=(git rev-parse HEAD).Trim()
+          if($LASTEXITCODE){throw 'Could not resolve the compiled source commit'}
+          python packaging/promote-release.py --repo "$env:GITHUB_REPOSITORY" --tag "$env:CITRUS_RELEASE_TAG" --source-commit "$sourceCommit" --signature NotSigned --dist dist --notes-file packaging/RELEASE-NOTES-preview.10.md
+          if($LASTEXITCODE){throw 'Verified preview publication failed; inspect the release state before retrying'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -212,4 +232,5 @@ jobs:
             .local/setup-hash-*/compile.log
             .local/setup-hash-*/native.log
             .local/setup-hash-*/results.txt
+            TestResults
           if-no-files-found: warn
