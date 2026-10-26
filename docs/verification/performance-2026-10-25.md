@@ -1,6 +1,6 @@
-# Preview.10 performance review
+# Preview.11 performance review
 
-This record describes the preview.10 source changes relative to `43b07f0a8853cd35b9e72efab12a970fd038db29`. It separates measured Linux workloads, output comparisons, source builds and Windows release checks. It does not establish overall application speed, startup latency or peak process memory.
+This record describes the editor changes developed in the unpublished preview.10 candidate and retained in preview.11, relative to `43b07f0a8853cd35b9e72efab12a970fd038db29`. Preview.10 stopped at compiler acquisition before packaging; preview.11 retains the official integrity pins and adds verified download fallbacks. This record separates measured Linux workloads, output comparisons, source builds and Windows release checks. It does not establish overall application speed, startup latency or peak process memory.
 
 ## Changes and preserved contracts
 
@@ -46,7 +46,7 @@ Final local checks built all six solution projects in Release with zero warnings
 
 The new Windows responsiveness coverage contains twelve PDF bitmap cases and eleven routed drag cases; the existing shelf integration case is also in the bounded source/release gate. [Windows source CI](https://github.com/Skytuhua/Citrus/actions/runs/40276690603) for initial candidate `614726e137bd94d52f69f3fb7dffab1b987dd219` passed all 327 core cases and all 24 bounded Windows cases, with no skips or failures. This qualifies those specific contracts rather than the complete native application.
 
-Release preparation also checks all conversion tests against the pinned Windows engines. The explicitly requested preview.10 publication is gated to that exact unsigned tag; other tags and manual runs retain draft-only preparation. Twenty-two promotion tests cover release/tag/source identity, signature policy, the exact five assets, downloaded byte hashes, mutation detection, draft lookup, UTF-8 transport and bounded public downloads. The publisher verifies final local/uploaded bytes before making the preview public, then hashes the public downloads. A failed verification preserves the release for investigation; it never deletes or replaces published assets.
+Release preparation also checks all conversion tests against the pinned Windows engines. The explicitly requested preview.11 publication is gated to that exact unsigned tag; other tags and manual runs retain draft-only preparation. Twenty-two promotion tests cover release/tag/source identity, signature policy, the exact five assets, downloaded byte hashes, mutation detection, draft lookup, UTF-8 transport and bounded public downloads. The publisher verifies final local/uploaded bytes before making the preview public, then hashes the public downloads. A failed verification preserves the release for investigation; it never deletes or replaces published assets.
 
 The Linux SDK originally lacked its WindowsDesktop reference pack in the SDK targeting-pack directory. That caused .NET 9 package-pruning fallback and a misleading `System.IO.Packaging` restore error. Provisioning the official matching WindowsDesktop 10.0.13 reference pack repaired the environment. The repository's dependency versions and lock files were not changed. Locked solution restore and Windows test-project cross-compilation succeeded.
 

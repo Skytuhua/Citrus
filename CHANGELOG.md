@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.0-preview.10 — release candidate
+## 0.3.0-preview.11 — release candidate
+
+- Include the editor and conversion performance changes reviewed in the unpublished preview.10 candidate.
+- Acquire NSIS 3.11 through bounded official download fallbacks, preserving the original archive and compiler hashes.
+- Record acquisition diagnostics and verify the compiler download on Windows before tagging the release.
+
+## 0.3.0-preview.10 — unpublished candidate
+
+Release preparation stopped at the compiler archive integrity check; no installer was published.
 
 - Reuse editor-validation metadata and build numeric error messages only when needed, preserving ordered validation results.
 - Skip neutral image color processing and inactive whites/blacks calculations while preserving checked exact and scaled pixels.

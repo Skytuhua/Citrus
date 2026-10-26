@@ -1,6 +1,6 @@
 # 0.3 preview notes
 
-The 0.3.0-preview.10 candidate reduces repeated editor validation, inactive image adjustment work, HEIC raster decoding and OCR initialization. PDF bitmap decoding and shelf polling run on bounded background work; actual file drops still validate their selection afresh. See the [performance review and verification boundaries](verification/performance-2026-10-25.md). The measured timings are Linux workloads; Windows runtime and installer qualification remain separate release requirements.
+The 0.3.0-preview.11 candidate includes the editor performance changes reviewed in the unpublished preview.10 candidate and repairs compiler acquisition with unchanged integrity pins. It reduces repeated editor validation, inactive image adjustment work, HEIC raster decoding and OCR initialization. PDF bitmap decoding and shelf polling run on bounded background work; actual file drops still validate their selection afresh. See the [performance review and verification boundaries](verification/performance-2026-10-25.md). The measured timings are Linux workloads; Windows runtime and installer qualification remain separate release requirements.
 
 Preview.9 reduced repeated allocations during installed-file verification by reusing SHA-256 contexts and buffers. Every installed file still receives its complete hash check; failed partial hashes are discarded before another file or rollback is checked. Earlier previews without automatic updates require [one manual upgrade](AUTOMATIC-UPDATES.md).
 
