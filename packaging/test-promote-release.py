@@ -18,7 +18,7 @@ if SCRIPT.exists():
 else:
     promotion = types.SimpleNamespace()
 
-TAG = 'v0.3.0-preview.11'
+TAG = 'v0.3.0-preview.12'
 COMMIT = '1234567890abcdef1234567890abcdef12345678'
 REPO = 'Skytuhua/Citrus'
 BASE = 'https://github.com/Skytuhua/Citrus/releases/download/' + TAG + '/'
@@ -37,19 +37,19 @@ class PromotionTests(unittest.TestCase):
         self.dist = self.root / 'dist'
         self.dist.mkdir()
         (self.dist / 'release').mkdir()
-        (self.root / 'CitrusVersion.props').write_text('<Project><PropertyGroup><Version>0.3.0-preview.11</Version></PropertyGroup></Project>')
+        (self.root / 'CitrusVersion.props').write_text('<Project><PropertyGroup><Version>0.3.0-preview.12</Version></PropertyGroup></Project>')
         self.notes = self.root / 'notes.md'
         self.notes.write_text('Unsigned preview; verified build.')
         (self.dist / 'Citrus-Setup.exe').write_bytes(b'installer fixture')
         (self.dist / 'Citrus-ThirdParty-Sources.zip').write_bytes(b'complete sources fixture')
-        self.manifest = {'schema': 2, 'product': 'Citrus', 'platform': 'Windows x64', 'version': '0.3.0-preview.11', 'sourceCommit': COMMIT,
-                         'installer': {'file': 'Citrus-Setup.exe', 'bytes': 17, 'sha256': hashlib.sha256(b'installer fixture').hexdigest(), 'fileVersion': '0.3.0-preview.11', 'signature': 'NotSigned'},
+        self.manifest = {'schema': 2, 'product': 'Citrus', 'platform': 'Windows x64', 'version': '0.3.0-preview.12', 'sourceCommit': COMMIT,
+                         'installer': {'file': 'Citrus-Setup.exe', 'bytes': 17, 'sha256': hashlib.sha256(b'installer fixture').hexdigest(), 'fileVersion': '0.3.0-preview.12', 'signature': 'NotSigned'},
                          'sources': {'file': 'Citrus-ThirdParty-Sources.zip', 'bytes': 24, 'sha256': hashlib.sha256(b'complete sources fixture').hexdigest(), 'url': BASE + 'Citrus-ThirdParty-Sources.zip'}}
         self.write_metadata()
 
     def write_metadata(self):
         (self.dist / 'release-manifest.json').write_text(json.dumps(self.manifest))
-        (self.dist / 'source-distribution.json').write_text(json.dumps({'schema': 1, 'version': '0.3.0-preview.11', 'archive': self.manifest['sources'], 'files': {}}))
+        (self.dist / 'source-distribution.json').write_text(json.dumps({'schema': 1, 'version': '0.3.0-preview.12', 'archive': self.manifest['sources'], 'files': {}}))
         names = ['Citrus-Setup.exe', 'release-manifest.json', 'Citrus-ThirdParty-Sources.zip', 'source-distribution.json']
         (self.dist / 'release/SHA256SUMS').write_text(''.join(hashlib.sha256((self.dist / name).read_bytes()).hexdigest() + '  ' + name + '\n' for name in names))
 

@@ -84,7 +84,12 @@ jobs:
           if(!(Test-Path -LiteralPath $compiler -PathType Leaf)){throw 'Pinned compiler executable missing'}
           "MAKENSIS=$compiler" >> $env:GITHUB_ENV
       - name: Restore frozen, individually pinned offline engines
-        run: python packaging/bootstrap-engines.py
+        shell: pwsh
+        run: |
+          python packaging/test-bootstrap-engines.py
+          if($LASTEXITCODE){throw 'Pinned engine hydration contracts failed'}
+          python packaging/bootstrap-engines.py
+          if($LASTEXITCODE){throw 'Pinned engine hydration failed'}
       - name: Restore, build and test source
         shell: pwsh
         run: |
@@ -207,15 +212,15 @@ jobs:
           Write-Output 'Draft is complete. It is intentionally excluded from application update feeds until publication.'
       # Publication was explicitly requested for this preview. Other tags and manual
       # runs retain the existing draft-only preparation behavior.
-      - name: Publish verified preview.11
-        if: github.event_name == 'push' && github.ref == 'refs/tags/v0.3.0-preview.11' && env.CITRUS_SIGNING == 'unsigned'
+      - name: Publish verified preview.12
+        if: github.event_name == 'push' && github.ref == 'refs/tags/v0.3.0-preview.12' && env.CITRUS_SIGNING == 'unsigned'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $sourceCommit=(git rev-parse HEAD).Trim()
           if($LASTEXITCODE){throw 'Could not resolve the compiled source commit'}
-          python packaging/promote-release.py --repo "$env:GITHUB_REPOSITORY" --tag "$env:CITRUS_RELEASE_TAG" --source-commit "$sourceCommit" --signature NotSigned --dist dist --notes-file packaging/RELEASE-NOTES-preview.11.md
+          python packaging/promote-release.py --repo "$env:GITHUB_REPOSITORY" --tag "$env:CITRUS_RELEASE_TAG" --source-commit "$sourceCommit" --signature NotSigned --dist dist --notes-file packaging/RELEASE-NOTES-preview.12.md
           if($LASTEXITCODE){throw 'Verified preview publication failed; inspect the release state before retrying'}
       - uses: actions/upload-artifact@v4
         if: always()

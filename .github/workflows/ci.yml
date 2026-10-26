@@ -39,9 +39,11 @@ jobs:
           if($LASTEXITCODE){throw 'Release promotion contracts failed'}
           python packaging/test-acquire-nsis.py
           if($LASTEXITCODE){throw 'Pinned compiler acquisition contracts failed'}
+          python packaging/test-bootstrap-engines.py
+          if($LASTEXITCODE){throw 'Pinned engine hydration contracts failed'}
       # Verify the live dependency before assigning this replacement release tag.
-      - name: Acquire pinned compiler for preview.11 candidate
-        if: github.event_name == 'pull_request' && github.head_ref == 'release/preview-11'
+      - name: Acquire pinned compiler for release candidate
+        if: github.event_name == 'pull_request' && (startsWith(github.head_ref, 'release/') || github.head_ref == 'fix/office-worker-startup')
         shell: pwsh
         run: |
           $toolRoot=Join-Path $env:RUNNER_TEMP 'citrus-nsis-source-check'
@@ -55,3 +57,40 @@ jobs:
           if-no-files-found: warn
       - name: Qualification scope
         run: Write-Output 'Source and bounded editor/release-metadata contracts only. Full engine acquisition, native workflows and installer qualification are separate release checks.'
+  engines:
+    if: github.event_name == 'pull_request' && (startsWith(github.head_ref, 'release/') || github.head_ref == 'fix/office-worker-startup')
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      CITRUS_TEST_FFMPEG: ${{ github.workspace }}\packaging\media\win-x64\ffmpeg.exe
+      CITRUS_TEST_FFPROBE: ${{ github.workspace }}\packaging\media\win-x64\ffprobe.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.402
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore pinned engine inputs
+        id: engine-restore
+        run: python packaging/bootstrap-engines.py
+      - name: Build native conversion contracts
+        id: native-build
+        shell: pwsh
+        run: |
+          dotnet restore tests/Citrus.Conversion.Tests --locked-mode
+          if($LASTEXITCODE){throw 'Locked conversion restore failed'}
+          dotnet build tests/Citrus.Conversion.Tests -c Release --no-restore -m:1
+          if($LASTEXITCODE){throw 'Conversion contract build failed'}
+      - name: Record isolated Office startup
+        run: dotnet test tests/Citrus.Conversion.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~OfflineWorkerStartupTests' --logger 'console;verbosity=normal' --logger trx --results-directory TestResults/worker-startup
+      - name: Full pinned-engine conversion contracts
+        if: always() && steps.engine-restore.outcome == 'success' && steps.native-build.outcome == 'success'
+        run: dotnet test tests/Citrus.Conversion.Tests -c Release --no-build --no-restore --logger trx --results-directory TestResults/conversion
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pinned-engine-contract-results
+          path: TestResults
+          if-no-files-found: warn

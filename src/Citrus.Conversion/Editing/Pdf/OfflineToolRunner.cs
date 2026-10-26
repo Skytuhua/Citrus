@@ -32,6 +32,17 @@ public static class OfflineToolRunner
     {
         string bundle=Path.GetFullPath(readOnlyRoot),work=Path.GetFullPath(staging),exe=Path.GetFullPath(executable);
         if(!exe.StartsWith(bundle+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)||!File.Exists(exe)||!Directory.Exists(work))throw new ArgumentException("The worker must be inside the admitted offline bundle with existing private staging.");
+        string program=Path.Combine(bundle,"libreoffice","program"),pythonHome=Path.Combine(program,"python-core-3.13.15");
+        bool bundledPython=string.Equals(exe,Path.Combine(program,"python.exe"),StringComparison.OrdinalIgnoreCase);
+        string application=exe,argumentZero=exe;
+        if(bundledPython)
+        {
+            // LibreOffice's launcher starts another process without inheriting
+            // our standard handles. Start its pinned interpreter directly,
+            // preserving the vendor's Python-home argv[0] contract instead.
+            application=Path.Combine(pythonHome,"bin","python.exe");argumentZero=pythonHome;
+            if(!File.Exists(application))throw new NotSupportedException("The bundled Python interpreter is missing. Repair the offline feature pack.");
+        }
         string name="Citrus.Offline."+Guid.NewGuid().ToString("N");nint sid=0,attributes=0,caps=0,handles=0,environment=0;
         SecurityIdentifier? identity=null;bool bundleGranted=false,workGranted=false;
         using var job=CreateJobObject(0,null);if(job.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -42,9 +53,10 @@ public static class OfflineToolRunner
             Marshal.ThrowExceptionForHR(CreateAppContainerProfile(name,name,"Isolated offline document conversion",0,0,out sid));identity=new(sid);
             Grant(bundle,identity,FileSystemRights.ReadAndExecute);bundleGranted=true;Grant(work,identity,FileSystemRights.FullControl);workGranted=true;
             string log=Path.Combine(work,"worker-"+Guid.NewGuid().ToString("N")+".log");
-            using var sink=File.OpenHandle(log,FileMode.CreateNew,FileAccess.Write,FileShare.ReadWrite);
+            // A concurrent host launch can briefly inherit a duplicate. Owned
+            // log deletion must remain possible after this worker tree retires.
+            using var sink=File.OpenHandle(log,FileMode.CreateNew,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete);
             using var input=CreateFile("NUL",0x80000000,3,0,3,0,0);if(input.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
-            if(!SetHandleInformation(sink.DangerousGetHandle(),1,1)||!SetHandleInformation(input.DangerousGetHandle(),1,1))throw new Win32Exception(Marshal.GetLastWin32Error());
             nuint length=0;InitializeProcThreadAttributeList(0,2,0,ref length);attributes=Marshal.AllocHGlobal((nint)length);
             if(!InitializeProcThreadAttributeList(attributes,2,0,ref length))throw new Win32Exception(Marshal.GetLastWin32Error());
             caps=Marshal.AllocHGlobal(Marshal.SizeOf<SecurityCapabilities>());Marshal.StructureToPtr(new SecurityCapabilities { AppContainerSid=sid },caps,false);
@@ -63,12 +75,33 @@ public static class OfflineToolRunner
                 ["USERPROFILE"]=profile,["HOME"]=profile,["APPDATA"]=roaming,["LOCALAPPDATA"]=local,["TEMP"]=work,["TMP"]=work,
                 ["SAL_USE_VCLPLUGIN"]="svp",["SAL_DISABLE_OPENCL"]="1"
             };
-            string program=Path.Combine(bundle,"libreoffice","program");variables["PYTHONHOME"]=Path.Combine(program,"python-core-3.13.15");variables["PYTHONPATH"]=program;variables["PYTHONNOUSERSITE"]="1";variables["PYTHONDONTWRITEBYTECODE"]="1";
+            variables["PYTHONHOME"]=pythonHome;variables["PYTHONPATH"]=program;variables["PYTHONNOUSERSITE"]="1";variables["PYTHONDONTWRITEBYTECODE"]="1";
+            if(bundledPython)
+            {
+                variables["UNO_PATH"]=program;
+                variables["URE_BOOTSTRAP"]="vnd.sun.star.pathname:"+Path.Combine(program,"fundamental.ini");
+                variables["PYTHONPATH"]=string.Join(';',program,Path.Combine(pythonHome,"lib"),Path.Combine(pythonHome,"lib","site-packages"));
+            }
             variables["PATH"]=program+";"+Environment.GetFolderPath(Environment.SpecialFolder.System);
             environment=Marshal.StringToHGlobalUni(string.Join('\0',variables.OrderBy(p=>p.Key,StringComparer.OrdinalIgnoreCase).Select(p=>p.Key+"="+p.Value))+"\0\0");
-            var command=new StringBuilder(string.Join(' ',new[]{exe}.Concat(arguments).Select(Quote)));
-            if(!CreateProcess(exe,command,0,0,true,0x80000|0x400|0x8000000|4,environment,work,ref start,out var process))throw new Win32Exception(Marshal.GetLastWin32Error(),"Could not start the isolated document worker.");
+            var command=new StringBuilder(string.Join(' ',new[]{argumentZero}.Concat(arguments).Select(Quote)));
+            ProcessInformation process=default;bool started=false;int launchError=0,inheritError=0;
+            try
+            {
+                // The explicit child handle list needs inheritable handles, but
+                // unrelated Process.Start calls must not inherit them while we wait.
+                if(!SetHandleInformation(sink.DangerousGetHandle(),1,1)||!SetHandleInformation(input.DangerousGetHandle(),1,1))throw new Win32Exception(Marshal.GetLastWin32Error());
+                started=CreateProcess(application,command,0,0,true,0x80000|0x400|0x8000000|4,environment,work,ref start,out process);
+                if(!started)launchError=Marshal.GetLastWin32Error();
+            }
+            finally
+            {
+                if(!SetHandleInformation(sink.DangerousGetHandle(),1,0))inheritError=Marshal.GetLastWin32Error();
+                if(!SetHandleInformation(input.DangerousGetHandle(),1,0)&&inheritError==0)inheritError=Marshal.GetLastWin32Error();
+            }
+            if(!started)throw new Win32Exception(launchError,"Could not start the isolated document worker.");
             using var processHandle=new SafeFileHandle(process.Process,true);using var thread=new SafeFileHandle(process.Thread,true);
+            if(inheritError!=0){TerminateProcess(processHandle,1);throw new Win32Exception(inheritError,"Could not retire the worker's temporary handle inheritance.");}
             if(!AssignProcessToJobObject(job,processHandle)){TerminateProcess(processHandle,1);throw new Win32Exception(Marshal.GetLastWin32Error());}
             if(ResumeThread(thread)==uint.MaxValue){TerminateJobObject(job,1);throw new Win32Exception(Marshal.GetLastWin32Error());}
             using var timeoutSource=new CancellationTokenSource(timeout);using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,timeoutSource.Token);

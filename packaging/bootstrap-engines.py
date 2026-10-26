@@ -3,6 +3,8 @@
 
 The frozen installer is read as an archive; it is never executed. Existing source
 or engine bytes are never replaced. A changed pin requires a new reviewed pack.
+Existing matching files retain their ACLs. Repair an older protected hydration
+in a fresh workspace; this tool never resets existing developer file security.
 """
 import argparse
 import hashlib
@@ -64,6 +66,19 @@ def valid(path,sha,size):
     if path.is_symlink():raise RuntimeError('Linked engine path refused: '+str(path))
     return path.is_file() and (size is None or path.stat().st_size==size) and digest(path)==sha
 
+def materialize(source,destination):
+    # A fresh file inherits the bundle's ACL instead of retaining protection
+    # from the private extraction directory. Never copy source security metadata.
+    created=False
+    try:
+        with source.open('rb') as incoming,destination.open('xb') as outgoing:
+            created=True
+            shutil.copyfileobj(incoming,outgoing,1024*1024)
+    except BaseException:
+        if created:destination.unlink(missing_ok=True)
+        raise
+    source.unlink()
+
 class HttpsRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,request,fp,code,msg,headers,newurl):
         if not newurl.startswith('https://'):raise RuntimeError('Refusing non-HTTPS release redirect')
@@ -106,8 +121,8 @@ def restore(installer=None):
             checked_destination(destination)
             destination.parent.mkdir(parents=True,exist_ok=True)
             if destination.exists():raise RuntimeError('Engine appeared during hydration; refusing overwrite')
-            # Same-volume rename avoids a second copy of the multi-gigabyte pack.
-            source.replace(destination)
+            # Hashes are checked again below after exclusive data-only copying.
+            materialize(source,destination)
     for destination,published,sha,size in records:
         if not valid(destination,sha,size):raise RuntimeError('Hydrated engine verification failed: '+published)
     if owned_download:installer.unlink()
