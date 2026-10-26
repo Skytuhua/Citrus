@@ -84,7 +84,12 @@ jobs:
           if(!(Test-Path -LiteralPath $compiler -PathType Leaf)){throw 'Pinned compiler executable missing'}
           "MAKENSIS=$compiler" >> $env:GITHUB_ENV
       - name: Restore frozen, individually pinned offline engines
-        run: python packaging/bootstrap-engines.py
+        shell: pwsh
+        run: |
+          python packaging/test-bootstrap-engines.py
+          if($LASTEXITCODE){throw 'Pinned engine hydration contracts failed'}
+          python packaging/bootstrap-engines.py
+          if($LASTEXITCODE){throw 'Pinned engine hydration failed'}
       - name: Restore, build and test source
         shell: pwsh
         run: |

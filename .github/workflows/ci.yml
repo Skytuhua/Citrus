@@ -39,6 +39,8 @@ jobs:
           if($LASTEXITCODE){throw 'Release promotion contracts failed'}
           python packaging/test-acquire-nsis.py
           if($LASTEXITCODE){throw 'Pinned compiler acquisition contracts failed'}
+          python packaging/test-bootstrap-engines.py
+          if($LASTEXITCODE){throw 'Pinned engine hydration contracts failed'}
       # Verify the live dependency before assigning this replacement release tag.
       - name: Acquire pinned compiler for release candidate
         if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
