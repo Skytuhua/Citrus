@@ -1,11 +1,11 @@
 # Changelog
 
-## 0.3.0-preview.12 — release candidate
+## 0.3.0-preview.12 — 2026-10-26
 
 - Retain the editor and conversion performance changes and verified acquisition of the pinned installer compiler.
 - Restore sandboxed Office startup after fresh engine hydration without changing engine bytes or sandbox permissions.
 - Capture Office worker diagnostics directly and prevent unrelated processes from retaining private worker logs.
-- Prepare the follow-up candidate with Windows source, core, editor and native conversion checks required before publication.
+- Gate publication on Windows source, core, editor and native conversion checks.
 
 ## 0.3.0-preview.11 — unpublished failed build
 
