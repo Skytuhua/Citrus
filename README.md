@@ -2,7 +2,7 @@
 
 <h1 align="center">Citrus for Windows</h1>
 <p align="center"><strong>Convert files. Keep your flow.</strong></p>
-<p align="center">Local file conversion and focused editors for Windows.<br>Choose a task from a compact wheel or the workspace. Save a separate result.</p>
+<p align="center">Open-source, offline file conversion and focused editors for Windows x64.<br>The current public preview is free to download and use. Choose a task from a compact wheel or the workspace. Save a separate result.</p>
 
 <p align="center"><a href="https://github.com/Skytuhua/Citrus/releases/download/v0.3.0-preview.9/Citrus-Setup.exe"><strong>Download the Windows installer →</strong></a> · <a href="docs/QUICKSTART.md">Quick start</a> · <a href="https://citrous.app">Website</a> · <a href="mailto:leo@citrous.app">Email support</a></p>
 
@@ -69,11 +69,11 @@ Third-party sources and rebuild inputs are available separately as **[Citrus-Thi
 
 Closing the launcher leaves Citrus in the tray. Choose **Quit** from the tray to exit before updating or uninstalling. [Installation and uninstall help](docs/QUICKSTART.md).
 
-Installed releases check for updates in the background and install verified new versions when Citrus is idle. Earlier previews need one manual upgrade to acquire the updater. [Automatic updates and controls](docs/AUTOMATIC-UPDATES.md).
+Installed releases contact GitHub online to check for updates and download verified new versions, which install when Citrus is idle. Automatic updates are enabled by default and can be turned off in Settings. Earlier previews need one manual upgrade to acquire the updater. [Automatic updates and controls](docs/AUTOMATIC-UPDATES.md) · [Privacy and network behavior](https://citrous.app/privacy/).
 
 ## Local processing, separate outputs
 
-Conversion and editing run on your computer, without an upload workflow or account. Jobs preserve the original file's bytes and location; moving originals is a separate, explicit action. Review the returned file and destination before relying on the result.
+Conversion and editing work offline after installation, on your computer, without uploading source files or requiring an account. Jobs preserve the original file's bytes and location; moving originals is a separate, explicit action. Review the returned file and destination before relying on the result.
 
 ## Reproducible released-engine checks
 
