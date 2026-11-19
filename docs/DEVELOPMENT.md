@@ -19,6 +19,8 @@ dotnet test tests/Citrus.Core.Tests -c Release --no-build --no-restore
 
 Conversion/desktop checks need actual engines. Set `CITRUS_TEST_FFMPEG` and `CITRUS_TEST_FFPROBE` to pinned binaries for Windows media tests. Device, capture and some native tests are explicit opt-ins. Missing prerequisites are not a pass.
 
+[Test prerequisites and check selection](../tests/README.md) lists each suite's requirements, the engine-free core path, the opt-ins and which checks suit a change.
+
 ## Engine packs and publishing
 
 Read scripts and locks before acquisition. `packaging/build-media.sh` describes media source builds. Image/document scripts pin genuine HEIC, ExifTool, Office/Pandoc and OCR inputs. Runtime jobs do not download codecs.
