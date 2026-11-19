@@ -57,6 +57,19 @@ jobs:
           if-no-files-found: warn
       - name: Qualification scope
         run: Write-Output 'Source and bounded editor/release-metadata contracts only. Full engine acquisition, native workflows and installer qualification are separate release checks.'
+  docs:
+    # Offline relative-target check only; no engines, installer or application launch.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Documentation link checker contracts
+        run: python -m unittest discover -s tools/tests -v
+      - name: Relative documentation targets
+        run: python tools/check-doc-links.py
   engines:
     if: github.event_name == 'pull_request' && (startsWith(github.head_ref, 'release/') || github.head_ref == 'fix/office-worker-startup')
     runs-on: windows-2025
