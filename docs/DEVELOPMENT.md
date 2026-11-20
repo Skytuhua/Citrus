@@ -27,6 +27,12 @@ On a prepared Windows machine, `./packaging/publish.ps1 -Phase Payload` builds a
 
 Public CI builds source and runs its declared core contracts. It does not establish offline-pack acquisition, native Explorer behavior, fidelity or clean-machine deployment. Check specific runs and release verification.
 
+## Documentation links
+
+From the repository root, `python tools/check-doc-links.py` checks relative link and image targets in tracked Markdown offline with the Python standard library. It prints `file:line` for each missing target and exits nonzero. `python -m unittest discover -s tools/tests` runs its fixture tests; CI runs both in a separate `docs` job.
+
+It checks inline Markdown links/images and quoted HTML `href`/`src`, resolving from the document or, with a leading `/`, the repository root. It ignores external URLs, same-page `#anchors`, fenced code and inline code, and checks only the file part of `file.md#section`. It skips vendored `packaging/notices/` and `packaging/Distribution-README.md`, whose links resolve in the installed layout. Heading anchors, reference-style links, `srcset`, HTML comments and link availability are not checked.
+
 ## Architecture and verification
 
 [Conversion UI](conversion-interface.md), [media](media-engine.md), [PDF](pdf-engine.md), [archives/subtitles](subtitle-archive-engines.md) and [settings/actions](native-actions-settings.md) describe boundaries. Immutable recipes, verified private sources, the job queue and collision-safe publication are shared by preview/export.
